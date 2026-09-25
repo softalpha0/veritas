@@ -67,6 +67,7 @@ Exchanges and protocol contracts are left out of clustering, so "both funded fro
 | `tgm/flow-intelligence` | 7-day flows by Smart Money, whales, exchanges and fresh wallets | 1 |
 | `profiler/address/related-wallets` | Links between wallets (First Funder, multisig, transfers) | up to 120 |
 | `search/general` | Token search by name or symbol | as you type |
+| `token-screener` | Markets page: price, market cap, volume, net flow, liquidity and age per chain | 1 per list view (cached 10 min) |
 | `smart-money/netflow` | "Smart Money is buying this week" list on the landing page | 1 per 6 hours |
 
 One full scan makes about **125 calls** (about 140 credits). Every live call is appended to `data/calls.jsonl` and totalled at `/api/stats`, so API usage is auditable. Responses are cached on disk for 6 hours, so re-opening a report costs nothing.
@@ -116,6 +117,7 @@ Veritas is a small Node server (it keeps your API key server-side), so it needs 
 | `/` | Product site: what Veritas does, live totals, recent verifications |
 | `/app` | Dashboard: totals, grade distribution, recent and highest-risk tokens, Smart Money inflows |
 | `/app?chain=…&token=…` | Token view: holder map, holders and clusters tables, score breakdown, supply composition |
+| `/app?view=markets` | Markets: live token lists per chain from Nansen's token screener (1h / 24h / 7d, all traders or Smart Money only), sortable, with a Scan button on every row |
 | `/app?view=game` | Spot the Insider |
 | `/app?view=leaderboard` | Every scanned token by trust score |
 | `/report?chain=…&token=…` | Shareable project report with embeddable badge |

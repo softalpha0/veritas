@@ -120,6 +120,45 @@ async function handleSearch(res, q) {
   }
 }
 
+// Market list per chain from Nansen's token screener, joined with saved trust scores.
+const SCREENER_TIMEFRAMES = ["1h", "24h", "7d"];
+const SCREENER_SORTS = ["volume", "market_cap_usd", "netflow", "buy_volume", "price_change", "liquidity"];
+async function handleMarkets(res, q) {
+  if (!live) return send(res, 200, { tokens: [], live });
+  const chain = q.get("chain") || "ethereum";
+  const timeframe = q.get("timeframe") || "24h";
+  const orderBy = q.get("sort") || "volume";
+  if (!CHAINS.includes(chain) || !SCREENER_TIMEFRAMES.includes(timeframe) || !SCREENER_SORTS.includes(orderBy)) return send(res, 400, { error: "Invalid market query." });
+  const page = Math.max(1, Math.min(10, Number(q.get("page")) || 1));
+  try {
+    const r = await api.tokenScreener(client, chain, { timeframe, orderBy, smartMoney: q.get("sm") === "1", page });
+    const scored = new Map(listReports().map((x) => [`${x.chain}:${String(x.token).toLowerCase()}`, x]));
+    const tokens = (r.data?.data || [])
+      .filter((t) => t.token_address && validTarget(t.chain || chain, t.token_address))
+      .map((t) => {
+        const report = scored.get(`${t.chain || chain}:${String(t.token_address).toLowerCase()}`);
+        return {
+          chain: t.chain || chain,
+          address: t.token_address,
+          symbol: t.token_symbol,
+          price: t.price_usd,
+          change: t.price_change,
+          marketCap: t.market_cap_usd,
+          fdv: t.fdv,
+          liquidity: t.liquidity,
+          volume: t.volume,
+          netflow: t.netflow,
+          ageDays: t.token_age_days,
+          score: report ? report.score : null,
+          grade: report ? report.grade : null,
+        };
+      });
+    send(res, 200, { tokens, page, lastPage: !!r.data?.pagination?.is_last_page, cached: r.cached });
+  } catch (e) {
+    send(res, 502, { error: e.message });
+  }
+}
+
 // "Smart Money is buying" feed for the landing page (cached 6h by the client).
 async function handleTrending(res) {
   if (!live) return send(res, 200, { tokens: [] });
@@ -164,6 +203,8 @@ const server = http.createServer(async (req, res) => {
     switch (url.pathname) {
       case "/api/config":
         return send(res, 200, { live, readOnly: READ_ONLY, chains: CHAINS });
+      case "/api/markets":
+        return handleMarkets(res, q);
       case "/api/trending":
         return handleTrending(res);
       case "/api/search":

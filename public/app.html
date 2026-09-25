@@ -19,6 +19,7 @@
     </a>
     <nav class="nav" aria-label="Main">
       <a href="/app" data-view="home">Dashboard</a>
+      <a href="/app?view=markets" data-view="markets">Markets</a>
       <a href="/app?view=leaderboard" data-view="leaderboard">Leaderboard</a>
       <a href="/app?view=game" data-view="game">Spot the Insider</a>
       <a href="/app?view=methodology" data-view="methodology">Methodology</a>
@@ -195,6 +196,38 @@
         </section>
       </aside>
     </div>
+  </main>
+
+  <!-- Markets -->
+  <main id="viewMarkets" class="view page wide" hidden>
+    <header class="page-head row">
+      <div><h1>Markets</h1><p class="muted">Live token lists from Nansen's token screener. Pick any token and scan who really holds it.</p></div>
+    </header>
+    <div class="market-bar">
+      <div class="chain-tabs" id="chainTabs" role="tablist" aria-label="Chain"></div>
+      <div class="market-filters">
+        <div class="seg" id="mktTime" role="group" aria-label="Timeframe"><button data-v="1h">1H</button><button data-v="24h" class="active">24H</button><button data-v="7d">7D</button></div>
+        <div class="seg" id="mktTraders" role="group" aria-label="Traders"><button data-v="0" class="active">All traders</button><button data-v="1">Smart Money</button></div>
+      </div>
+    </div>
+    <section class="card">
+      <table class="table market-table">
+        <thead><tr>
+          <th class="num">#</th><th>Token</th>
+          <th class="num">Price</th>
+          <th class="num sortable" data-sort="price_change">Change</th>
+          <th class="num sortable" data-sort="market_cap_usd">Market cap</th>
+          <th class="num sortable active" data-sort="volume">Volume</th>
+          <th class="num sortable hide-sm" data-sort="netflow">Net flow</th>
+          <th class="num sortable hide-sm" data-sort="liquidity">Liquidity</th>
+          <th class="num hide-sm">Age</th>
+          <th class="right">Trust score</th>
+        </tr></thead>
+        <tbody id="marketRows"></tbody>
+      </table>
+      <p class="empty" id="marketEmpty" hidden></p>
+      <div class="pager"><button class="btn" id="mktPrev" disabled>Previous</button><span class="muted small mono" id="mktPage">Page 1</span><button class="btn" id="mktNext">Next</button></div>
+    </section>
   </main>
 
   <!-- Leaderboard -->

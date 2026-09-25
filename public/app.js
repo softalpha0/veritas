@@ -89,7 +89,7 @@
 
   // ---------- Views ----------
   function showView(name) {
-    for (const v of ["Home", "Token", "Game", "Leaderboard", "Methodology"]) $(`view${v}`).hidden = v.toLowerCase() !== name;
+    for (const v of ["Home", "Token", "Game", "Markets", "Leaderboard", "Methodology"]) $(`view${v}`).hidden = v.toLowerCase() !== name;
     document.querySelectorAll(".nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === (name === "token" ? "home" : name)));
   }
 
@@ -681,6 +681,78 @@
     } catch { /* optional */ }
   }
 
+  // ---------- Markets ----------
+  const MARKET_CHAINS = ["ethereum", "base", "solana", "bnb", "arbitrum", "polygon", "optimism", "avalanche", "linea", "scroll", "mantle", "sonic"];
+  const market = { chain: "ethereum", timeframe: "24h", sm: "0", sort: "volume", page: 1, tokens: [] };
+  const price = (v) => (v == null ? "–" : v >= 1 ? `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : v >= 0.0001 ? `$${v.toPrecision(4)}` : `$${v.toExponential(2)}`);
+  const signedUsd = (v) => (v == null ? "–" : `${v >= 0 ? "+" : "−"}${usd(Math.abs(v))}`);
+
+  function openMarkets() {
+    showView("markets");
+    const p = new URLSearchParams(location.search);
+    if (MARKET_CHAINS.includes(p.get("chain"))) market.chain = p.get("chain");
+    $("chainTabs").innerHTML = MARKET_CHAINS.map((c) => `<button role="tab" data-c="${c}" class="${c === market.chain ? "active" : ""}">${c === "bnb" ? "BNB" : c}</button>`).join("");
+    $("chainTabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { market.chain = b.dataset.c; market.page = 1; loadMarkets(); }));
+    loadMarkets();
+  }
+
+  async function loadMarkets() {
+    document.querySelectorAll("#chainTabs button").forEach((b) => b.classList.toggle("active", b.dataset.c === market.chain));
+    document.querySelectorAll("#mktTime button").forEach((b) => b.classList.toggle("active", b.dataset.v === market.timeframe));
+    document.querySelectorAll("#mktTraders button").forEach((b) => b.classList.toggle("active", b.dataset.v === market.sm));
+    document.querySelectorAll(".market-table th.sortable").forEach((th) => th.classList.toggle("active", th.dataset.sort === market.sort));
+    $("mktPage").textContent = `Page ${market.page}`;
+    $("mktPrev").disabled = market.page <= 1;
+    $("marketEmpty").hidden = true;
+    $("marketRows").innerHTML = `<tr><td colspan="10" class="muted">Loading ${esc(market.chain)} tokens from Nansen…</td></tr>`;
+    history.replaceState(null, "", `/app?view=markets&chain=${market.chain}`);
+    let r;
+    try {
+      const qs = new URLSearchParams({ chain: market.chain, timeframe: market.timeframe, sort: market.sort, sm: market.sm, page: market.page });
+      r = await fetch(`/api/markets?${qs}`).then((x) => x.json());
+    } catch { r = { error: "Network error" }; }
+    if (r.error || !r.tokens?.length) {
+      $("marketRows").innerHTML = "";
+      $("marketEmpty").hidden = false;
+      $("marketEmpty").textContent = r.error ? `Nansen returned an error for this list: ${r.error}` : state.live ? "No tokens for this chain and filter." : "Add a Nansen API key to .env to load live markets.";
+      $("mktNext").disabled = true;
+      return;
+    }
+    market.tokens = r.tokens;
+    $("mktNext").disabled = !!r.lastPage;
+    const offset = (market.page - 1) * 50;
+    $("marketRows").innerHTML = r.tokens
+      .map((t, i) => {
+        const trust = t.score != null
+          ? `<a href="#" class="open" data-i="${i}">${scoreCell(t.score)}</a>`
+          : `<button class="btn btn-sm scan" data-i="${i}">Scan</button>`;
+        return `<tr class="clickable" data-i="${i}"><td class="num muted">${offset + i + 1}</td>
+          <td><div class="tok"><b>${esc(t.symbol || short(t.address))}</b><span class="muted mono">${esc(short(t.address))}</span></div></td>
+          <td class="num">${price(t.price)}</td>
+          <td class="num ${t.change > 0 ? "pos" : t.change < 0 ? "neg" : "muted"}">${t.change == null ? "–" : spct(t.change)}</td>
+          <td class="num">${t.marketCap ? usd(t.marketCap) : "–"}</td>
+          <td class="num">${t.volume ? usd(t.volume) : "–"}</td>
+          <td class="num hide-sm ${t.netflow > 0 ? "pos" : t.netflow < 0 ? "neg" : "muted"}">${signedUsd(t.netflow)}</td>
+          <td class="num hide-sm">${t.liquidity ? usd(t.liquidity) : "–"}</td>
+          <td class="num hide-sm muted">${t.ageDays == null ? "–" : t.ageDays >= 365 ? `${(t.ageDays / 365).toFixed(1)}y` : `${Math.round(t.ageDays)}d`}</td>
+          <td class="right">${trust}</td></tr>`;
+      })
+      .join("");
+    $("marketRows").querySelectorAll("tr").forEach((tr) =>
+      tr.addEventListener("click", (e) => {
+        e.preventDefault();
+        const t = market.tokens[Number(tr.dataset.i)];
+        startScan(t.chain, t.address, { symbol: t.symbol });
+      }),
+    );
+  }
+
+  document.querySelectorAll("#mktTime button").forEach((b) => b.addEventListener("click", () => { market.timeframe = b.dataset.v; market.page = 1; loadMarkets(); }));
+  document.querySelectorAll("#mktTraders button").forEach((b) => b.addEventListener("click", () => { market.sm = b.dataset.v; market.page = 1; loadMarkets(); }));
+  document.querySelectorAll(".market-table th.sortable").forEach((th) => th.addEventListener("click", () => { market.sort = th.dataset.sort; market.page = 1; loadMarkets(); }));
+  $("mktPrev").addEventListener("click", () => { market.page--; loadMarkets(); });
+  $("mktNext").addEventListener("click", () => { market.page++; loadMarkets(); });
+
   // ---------- Game: Spot the Insider ----------
   // Every round is a real scanned token. Clusters stay hidden until reveal.
   const ROUNDS = 3;
@@ -867,6 +939,7 @@
     stopOrbit();
     const view = p.get("view");
     if (view === "game") return startGame();
+    if (view === "markets") return openMarkets();
     showView(view === "leaderboard" || view === "methodology" ? view : "home");
   }
   window.addEventListener("popstate", route);

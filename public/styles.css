@@ -214,6 +214,23 @@ code { font-family: var(--mono); font-size: 0.85em; background: var(--surface-2)
 .stack-legend i { width: 10px; height: 10px; border-radius: 2px; }
 .stack-legend b { color: var(--text); font-weight: 500; }
 
+/* Markets */
+.view.page.wide { max-width: 1320px; }
+.market-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.chain-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.chain-tabs button { background: var(--surface); border: 1px solid var(--border); color: var(--muted); padding: 5px 11px; border-radius: 6px; cursor: pointer; text-transform: capitalize; font-weight: 500; }
+.chain-tabs button:hover { color: var(--text); }
+.chain-tabs button.active { background: var(--hover); color: var(--text); border-color: var(--border-strong); }
+.market-filters { display: flex; gap: 8px; }
+.market-filters .seg button { font-family: var(--font); padding: 5px 11px; }
+.market-table th.sortable { cursor: pointer; }
+.market-table th.sortable:hover { color: var(--text); }
+.market-table th.sortable.active { color: var(--text); }
+.market-table th.sortable.active::after { content: " ↓"; }
+.btn-sm { height: 26px; padding: 0 10px; font-size: 12px; }
+.market-table .open { text-decoration: none; display: inline-block; min-width: 120px; }
+.pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); }
+
 /* Game */
 #gameGalaxy { position: absolute; inset: 0; }
 .tab-title { font-weight: 600; font-size: 13px; }

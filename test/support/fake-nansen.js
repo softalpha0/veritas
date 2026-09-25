@@ -110,6 +110,9 @@ export class FakeNansenClient {
       case "smart-money/netflow":
         res = { data: [{ token_address: FAKE_TOKEN, token_symbol: "FIX", net_flow_7d_usd: 412_000, chain: "ethereum" }], pagination: { page: 1, per_page: 10, is_last_page: true } };
         break;
+      case "token-screener":
+        res = { data: [{ chain: "ethereum", token_address: FAKE_TOKEN, token_symbol: "FIX", price_usd: 0.42, price_change: 0.031, market_cap_usd: 420_000_000, liquidity: 12_000_000, volume: 8_400_000, netflow: 310_000, token_age_days: 400 }], pagination: { page: 1, per_page: 50, is_last_page: true } };
+        break;
       case "tgm/flow-intelligence":
         res = { data: [{ smart_trader_net_flow_usd: 412_000, top_pnl_net_flow_usd: 150_000, whale_net_flow_usd: -2_100_000, fresh_wallets_net_flow_usd: 2_900_000, exchange_net_flow_usd: 1_700_000 }] };
         break;
