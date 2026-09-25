@@ -104,19 +104,22 @@ Run the tests:
 npm test
 ```
 
-## Deploy
+## Deploy (Vercel)
 
-Veritas is a small Node server (it keeps your API key server-side), so it needs a Node host, not static hosting. The repo includes a `render.yaml` for [Render](https://render.com):
+The repo is ready for [Vercel](https://vercel.com): static pages are served from `public/`, and every `/api/*` route runs in one serverless function (`api/index.js`, configured in `vercel.json` with a 300-second limit, which is enough for a full scan).
 
 1. Push this repo to GitHub.
-2. In Render: **New → Blueprint**, then pick the repo.
-3. Set `NANSEN_API_KEY` in the Render dashboard. Never commit it.
+2. In Vercel: **Add New → Project**, then import the repo. Leave the framework preset as **Other** and keep the default settings.
+3. Under **Environment Variables**, add `NANSEN_API_KEY`. Never commit it.
+4. Deploy.
 
 **Protect your credits on a public site:**
-- `MAX_SCANS_PER_HOUR` (default 20) caps fresh live scans across all visitors.
+- `MAX_SCANS_PER_HOUR` (default 20) caps fresh live scans per server instance.
 - `READ_ONLY=true` turns off new live scans entirely. Visitors can still browse saved reports.
 
-**Pre-fill the site:** run `npm run batch` locally, then commit `data/reports/` and `data/calls.jsonl` before you deploy. Free hosts wipe the disk on restart, but committed reports ship with the app.
+**Pre-fill the site:** Vercel's disk is temporary. New scans are cached in `/tmp` and disappear when an instance restarts. Run `npm run batch` locally, then commit `data/reports/` and `data/calls.jsonl` before deploying, so the leaderboard, dashboard and game ship with the app.
+
+A `render.yaml` is also included if you prefer an always-on server on Render.
 
 ## Pages
 
@@ -135,6 +138,8 @@ Veritas is a small Node server (it keeps your API key server-side), so it needs 
 
 ```
 server.js            HTTP server + Server-Sent Events scan stream (zero dependencies)
+api/index.js         Vercel serverless entry (routes every /api/* request to server.js)
+lib/paths.js         File locations (repo locally, /tmp on Vercel)
 lib/nansen.js        Nansen client: rate limiting, retries, disk cache, call log
 lib/scan.js          Orchestrates one scan and streams progress to the browser
 lib/analyze.js       Pure analysis: clustering (union-find) and the trust score

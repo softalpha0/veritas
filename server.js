@@ -8,7 +8,7 @@ import { NansenClient, api, callStats } from "./lib/nansen.js";
 import { scanToken } from "./lib/scan.js";
 import { readReport, saveReport, listReports } from "./lib/reports.js";
 
-const ROOT = path.dirname(fileURLToPath(import.meta.url));
+import { ROOT, PUBLIC_DIR, SERVERLESS } from "./lib/paths.js";
 loadEnv(path.join(ROOT, ".env"));
 
 const PORT = Number(process.env.PORT || 3000);
@@ -64,7 +64,7 @@ async function handleScan(req, res, q) {
   if (!validTarget(chain, token)) return send(res, 400, { error: "Invalid chain or token address." });
   if (!live) return send(res, 400, { error: "No NANSEN_API_KEY configured. Add it to .env." });
 
-  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive", "x-accel-buffering": "no" });
   const emit = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
   const meta = { name: q.get("name") || "", symbol: q.get("symbol") || "", chain, address: token };
@@ -219,14 +219,23 @@ function badge(report) {
 function serveStatic(res, pathname) {
   const pages = { "/": "index.html", "/app": "app.html", "/report": "report.html" };
   const rel = pages[pathname] || pathname.slice(1);
-  const file = path.normalize(path.join(ROOT, "public", rel));
-  if (!file.startsWith(path.join(ROOT, "public")) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(res, 404, "Not found", "text/plain");
+  const file = path.normalize(path.join(PUBLIC_DIR, rel));
+  if (!file.startsWith(PUBLIC_DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(res, 404, "Not found", "text/plain");
   res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream" });
   fs.createReadStream(file).pipe(res);
 }
 
-const server = http.createServer(async (req, res) => {
+// One request handler for both `node server.js` and the Vercel function.
+export async function handler(req, res) {
   const url = new URL(req.url, "http://localhost");
+  // Vercel rewrites every path to /api/index?path=/original; restore it.
+  if (url.pathname.startsWith("/api/index") && url.searchParams.has("path")) {
+    const original = new URL(url.searchParams.get("path"), "http://localhost");
+    url.searchParams.delete("path");
+    for (const [k, v] of url.searchParams) original.searchParams.set(k, v);
+    url.pathname = original.pathname;
+    url.search = original.search;
+  }
   const q = url.searchParams;
   try {
     switch (url.pathname) {
@@ -258,9 +267,10 @@ const server = http.createServer(async (req, res) => {
   } catch (e) {
     send(res, 500, { error: e.message });
   }
-});
+}
 
-server.listen(PORT, "0.0.0.0", () => {
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain && !SERVERLESS) http.createServer(handler).listen(PORT, "0.0.0.0", () => {
   console.log(`\n  Veritas running at http://localhost:${PORT}`);
   console.log(live ? "  Live mode: using your Nansen API key." : "  No NANSEN_API_KEY found: add it to .env to scan tokens (see .env.example).");
   if (live) console.log(READ_ONLY ? "  Read-only: new live scans are disabled." : `  Live scans capped at ${MAX_SCANS_PER_HOUR} per hour (MAX_SCANS_PER_HOUR).`);
