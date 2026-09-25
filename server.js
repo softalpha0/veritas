@@ -270,6 +270,9 @@ export async function handler(req, res) {
   }
 }
 
+// Vercel can run this file directly as the function; give it the handler.
+export default handler;
+
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain && !SERVERLESS) http.createServer(handler).listen(PORT, "0.0.0.0", () => {
   console.log(`\n  Veritas running at http://localhost:${PORT}`);

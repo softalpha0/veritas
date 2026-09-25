@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
   "outputDirectory": "public",
   "functions": {
     "api/index.js": {
@@ -8,8 +9,17 @@
     }
   },
   "rewrites": [
-    { "source": "/app", "destination": "/app.html" },
-    { "source": "/report", "destination": "/report.html" },
-    { "source": "/api/(.*)", "destination": "/api/index?path=/api/$1" }
+    {
+      "source": "/app",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/report",
+      "destination": "/report.html"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index?path=/api/$1"
+    }
   ]
 }
