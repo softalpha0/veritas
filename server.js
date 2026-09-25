@@ -24,9 +24,10 @@ const running = new Set();
 
 // Credit protection for public deployments:
 //   READ_ONLY=1              -> no new live scans; saved reports still work
-//   MAX_SCANS_PER_HOUR=20    -> cap on fresh live scans across all visitors
+//   MAX_SCANS_PER_HOUR=20    -> cap on fresh live scans (default 20; 0 = unlimited)
 const READ_ONLY = /^(1|true|yes)$/i.test(process.env.READ_ONLY || "");
-const MAX_SCANS_PER_HOUR = Number(process.env.MAX_SCANS_PER_HOUR || 20);
+const capSetting = process.env.MAX_SCANS_PER_HOUR ?? "20";
+const MAX_SCANS_PER_HOUR = Number(capSetting) > 0 ? Number(capSetting) : Infinity;
 const scanTimes = [];
 function scanBudgetLeft() {
   const cutoff = Date.now() - 3600_000;
@@ -273,6 +274,6 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain && !SERVERLESS) http.createServer(handler).listen(PORT, "0.0.0.0", () => {
   console.log(`\n  Veritas running at http://localhost:${PORT}`);
   console.log(live ? "  Live mode: using your Nansen API key." : "  No NANSEN_API_KEY found: add it to .env to scan tokens (see .env.example).");
-  if (live) console.log(READ_ONLY ? "  Read-only: new live scans are disabled." : `  Live scans capped at ${MAX_SCANS_PER_HOUR} per hour (MAX_SCANS_PER_HOUR).`);
+  if (live) console.log(READ_ONLY ? "  Read-only: new live scans are disabled." : MAX_SCANS_PER_HOUR === Infinity ? "  Live scans: unlimited." : `  Live scans capped at ${MAX_SCANS_PER_HOUR} per hour (MAX_SCANS_PER_HOUR).`);
   console.log("");
 });

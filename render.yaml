@@ -12,5 +12,3 @@ services:
         sync: false
       - key: READ_ONLY
         value: "false"
-      - key: MAX_SCANS_PER_HOUR
-        value: "10"

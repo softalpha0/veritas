@@ -113,8 +113,8 @@ The repo is ready for [Vercel](https://vercel.com): static pages are served from
 3. Under **Environment Variables**, add `NANSEN_API_KEY`. Never commit it.
 4. Deploy.
 
-**Protect your credits on a public site:**
-- `MAX_SCANS_PER_HOUR` (default 20) caps fresh live scans per server instance.
+**Protect your credits:**
+- `MAX_SCANS_PER_HOUR` (default 20) caps fresh live scans to protect your Nansen credits. Set it to `0` for unlimited. It is counted per server instance, so on Vercel treat it as a soft limit.
 - `READ_ONLY=true` turns off new live scans entirely. Visitors can still browse saved reports.
 
 **Pre-fill the site:** Vercel's disk is temporary. New scans are cached in `/tmp` and disappear when an instance restarts. Run `npm run batch` locally, then commit `data/reports/` and `data/calls.jsonl` before deploying, so the leaderboard, dashboard and game ship with the app.
