@@ -33,7 +33,7 @@
       <span>Veritas</span>
     </a>
     <span class="muted small">Token holder report</span>
-    <a id="openApp" class="btn" style="margin-left:auto" href="/">Open in app</a>
+    <a id="openApp" class="btn" style="margin-left:auto" href="/app">Open in app</a>
   </header>
   <main class="report" id="content"><p class="empty">Loading report…</p></main>
   <script>
@@ -45,10 +45,10 @@
     const scoreColor = (s) => (s >= 80 ? "var(--good)" : s >= 60 ? "var(--text)" : s >= 40 ? "var(--warn)" : "var(--bad)");
     const p = new URLSearchParams(location.search);
     const q = `chain=${encodeURIComponent(p.get("chain") || "ethereum")}&token=${encodeURIComponent(p.get("token") || "")}`;
-    document.getElementById("openApp").href = `/?${q}`;
+    document.getElementById("openApp").href = `/app?${q}`;
     const el = document.getElementById("content");
     const res = await fetch(`/api/report?${q}`);
-    if (!res.ok) { el.innerHTML = `<p class="empty">No report for this token yet. <a href="/?${q}">Scan it now</a>.</p>`; return; }
+    if (!res.ok) { el.innerHTML = `<p class="empty">No report for this token yet. <a href="/app?${q}">Scan it now</a>.</p>`; return; }
     const r = await res.json();
     const m = r.metrics;
     const sym = r.meta?.symbol || "Token";

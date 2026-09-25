@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Veritas · Token holder intelligence</title>
+  <meta name="description" content="Veritas scores any token on who really holds it: hidden wallet clusters, owner concentration and Smart Money conviction, built on Nansen data." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Veritas home">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="5" fill="var(--accent)"/><path d="M7 7l5 10 5-10" fill="none" stroke="#0b0d10" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Veritas</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="/app" data-view="home">Dashboard</a>
+      <a href="/app?view=leaderboard" data-view="leaderboard">Leaderboard</a>
+      <a href="/app?view=game" data-view="game">Spot the Insider</a>
+      <a href="/app?view=methodology" data-view="methodology">Methodology</a>
+    </nav>
+    <form id="searchForm" class="search" autocomplete="off" role="search">
+      <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input id="query" type="text" placeholder="Search token or paste contract address" aria-label="Token" />
+      <select id="chain" aria-label="Chain"></select>
+      <kbd>/</kbd>
+      <ul id="suggestions" class="suggestions" hidden></ul>
+    </form>
+    <div class="status" id="apiStatus" title="Nansen API calls made by this instance">
+      <span class="dot"></span><span id="apiLabel">Nansen API</span><span class="sep">·</span><span id="callCount" class="mono">0</span>&nbsp;calls
+    </div>
+  </header>
+
+  <!-- Dashboard -->
+  <main id="viewHome" class="view home" hidden>
+    <header class="page-head row">
+      <div><h1>Dashboard</h1><p class="muted">Every token verified on this instance, from live Nansen data.</p></div>
+      <span id="modeNote" class="muted small"></span>
+    </header>
+    <section class="tiles" id="tiles">
+      <div class="tile"><span class="tile-label">Tokens verified</span><span class="tile-value mono" id="tTokens">0</span></div>
+      <div class="tile"><span class="tile-label">Wallets analysed</span><span class="tile-value mono" id="tWallets">0</span></div>
+      <div class="tile"><span class="tile-label">Hidden clusters found</span><span class="tile-value mono" id="tClusters">0</span></div>
+      <div class="tile"><span class="tile-label">Median trust score</span><span class="tile-value mono" id="tMedian">–</span></div>
+      <div class="tile"><span class="tile-label">Nansen API calls</span><span class="tile-value mono" id="tCalls">0</span></div>
+    </section>
+
+    <div class="dash-grid">
+      <section class="card span-2">
+        <header class="card-head"><h2>Recently verified</h2><a class="small" href="/app?view=leaderboard">View all</a></header>
+        <table class="table"><thead><tr><th>Token</th><th>Chain</th><th class="num hide-sm">Wallets → owners</th><th class="num">Clusters</th><th>Trust score</th></tr></thead><tbody id="recentRows"></tbody></table>
+        <p class="empty" id="recentEmpty">No tokens scanned yet. Search for a token above to run your first scan.</p>
+      </section>
+      <section class="card">
+        <header class="card-head"><h2>Grade distribution</h2><span class="muted small" id="gradeTotal"></span></header>
+        <ul class="grades" id="grades"></ul>
+      </section>
+      <section class="card">
+        <header class="card-head"><h2>Highest risk</h2><span class="muted small">Lowest trust scores</span></header>
+        <table class="table"><tbody id="riskRows"></tbody></table>
+        <p class="empty" id="riskEmpty">Nothing yet.</p>
+      </section>
+      <section class="card" id="trendingCard" hidden>
+        <header class="card-head"><h2>Smart Money net inflows</h2><span class="muted small">7d · Ethereum</span></header>
+        <table class="table"><thead><tr><th>Token</th><th class="num">Net inflow</th><th></th></tr></thead><tbody id="trendRows"></tbody></table>
+      </section>
+      <section class="card game-promo">
+        <header class="card-head"><h2>Spot the Insider</h2><span class="badge">Game</span></header>
+        <div class="pad-sm">
+          <p class="muted">Real tokens, real wallets. Find the wallets secretly run by the same owner before Veritas reveals them.</p>
+          <a class="btn btn-primary" href="/app?view=game">Play</a>
+          <span class="muted small" id="bestScore"></span>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Token -->
+  <main id="viewToken" class="view token" hidden>
+    <section class="token-bar">
+      <div class="token-id">
+        <div class="token-title"><h1 id="tokenName">–</h1><span id="chainBadge" class="badge"></span></div>
+        <div class="token-meta"><button class="addr mono" id="tokenAddr" title="Copy address"></button><span class="muted" id="scanMeta"></span></div>
+      </div>
+      <div class="token-actions">
+        <button class="btn" id="rescanBtn">Rescan</button>
+        <a class="btn" id="reportLink" href="#" target="_blank" rel="noopener">Report</a>
+        <button class="btn" id="shareBtn">Share</button>
+      </div>
+      <div class="scan-progress" id="progress" hidden><div class="scan-bar"><div id="progressBar"></div></div><span id="progressText" class="small"></span></div>
+    </section>
+
+    <div class="token-body">
+      <section class="card main-card">
+        <header class="tabs" role="tablist">
+          <button role="tab" data-tab="map" class="active">Holder map</button>
+          <button role="tab" data-tab="holders">Holders <span class="count" id="holderCount"></span></button>
+          <button role="tab" data-tab="clusters">Clusters <span class="count" id="clusterCount"></span></button>
+          <div class="tab-tools" id="mapTools">
+            <div class="seg" id="timeline" role="group" aria-label="Holdings as of">
+              <button data-t="0">30D</button><button data-t="1">7D</button><button data-t="2">24H</button><button data-t="3" class="active">Now</button>
+            </div>
+            <button class="icon-btn" id="fitBtn" title="Fit to view" aria-label="Fit to view"><svg viewBox="0 0 20 20" width="15" height="15"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+          </div>
+        </header>
+        <div class="tab-panel" data-panel="map">
+          <div id="galaxy" aria-label="Holder map"></div>
+          <ul class="legend" id="legend"></ul>
+          <div id="wallet" class="wallet" hidden>
+            <button class="close" id="walletClose" aria-label="Close">×</button>
+            <div id="walletBody"></div>
+          </div>
+        </div>
+        <div class="tab-panel scroll" data-panel="holders" hidden>
+          <table class="table table-dense"><thead><tr><th class="num">#</th><th>Wallet</th><th>Type</th><th class="num">Supply</th><th class="num">Value</th><th class="num">30d change</th><th class="num">Cluster</th></tr></thead><tbody id="holderRows"></tbody></table>
+        </div>
+        <div class="tab-panel scroll" data-panel="clusters" hidden>
+          <table class="table"><thead><tr><th>Cluster</th><th class="num">Wallets</th><th class="num">Supply</th><th class="num">7d change</th><th>Linked by</th><th></th></tr></thead><tbody id="clusterRows"></tbody></table>
+          <p class="empty" id="clustersEmpty" hidden>No linked wallets found among the top holders.</p>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="card score-card">
+          <header class="card-head"><h2>Trust score</h2><span id="gradeChip" class="badge"></span></header>
+          <div class="score-row"><span id="scoreNum" class="score mono">–</span><span class="muted">/ 100</span></div>
+          <div class="score-track"><div id="scoreFill"></div></div>
+          <ul class="factors" id="factors"></ul>
+        </section>
+        <section class="card">
+          <header class="card-head"><h2>Supply composition</h2><span class="muted small">share of total supply</span></header>
+          <div class="pad-sm">
+            <div class="stack" id="stackBar" role="img" aria-label="Supply composition"></div>
+            <ul class="stack-legend" id="stackLegend"></ul>
+          </div>
+        </section>
+        <section class="card">
+          <header class="card-head"><h2>Holder structure</h2></header>
+          <dl class="kv" id="metrics"></dl>
+        </section>
+        <section class="card">
+          <header class="card-head"><h2>Findings</h2></header>
+          <ul class="findings" id="findings"></ul>
+        </section>
+        <p class="disclaimer">Heuristic analysis of public on-chain data from Nansen. Not financial advice.</p>
+      </aside>
+    </div>
+  </main>
+
+  <!-- Game -->
+  <main id="viewGame" class="view token" hidden>
+    <section class="token-bar">
+      <div class="token-id">
+        <div class="token-title"><h1>Spot the Insider</h1><span class="badge" id="gameRound">Round 1 / 3</span></div>
+        <div class="token-meta muted" id="gameSub">Real token, real wallets. Pick the wallets you think are secretly run by the same owner.</div>
+      </div>
+      <div class="token-actions">
+        <span class="game-score"><span class="muted small">Score</span> <b class="mono" id="gameScore">0</b></span>
+        <span class="game-score"><span class="muted small">Best</span> <b class="mono" id="gameBest">0</b></span>
+      </div>
+    </section>
+    <div class="token-body">
+      <section class="card main-card">
+        <header class="tabs"><span class="tab-title" id="gameToken">–</span><div class="tab-tools"><span class="muted small">Click a wallet to pick it · click again to unpick</span></div></header>
+        <div class="tab-panel"><div id="gameGalaxy" aria-label="Game map"></div></div>
+      </section>
+      <aside class="side">
+        <section class="card">
+          <header class="card-head"><h2>Your mission</h2></header>
+          <div class="pad-sm" id="gameBrief"><p class="muted">Loading a token…</p></div>
+        </section>
+        <section class="card">
+          <header class="card-head"><h2>Your picks</h2><span class="mono small" id="pickCount">0 / 5</span></header>
+          <ul class="picks" id="picks"><li class="muted">No wallets picked yet.</li></ul>
+          <div class="pad-sm row-gap">
+            <button class="btn btn-primary" id="revealBtn" disabled>Reveal</button>
+            <button class="btn" id="nextBtn" hidden>Next token</button>
+          </div>
+        </section>
+        <section class="card" id="gameResult" hidden>
+          <header class="card-head"><h2>Result</h2><span class="badge" id="resultChip"></span></header>
+          <div class="pad-sm" id="resultBody"></div>
+        </section>
+        <section class="card">
+          <header class="card-head"><h2>How scoring works</h2></header>
+          <ul class="rules">
+            <li><b class="mono">+100</b> for every wallet you pick that belongs to a hidden cluster</li>
+            <li><b class="mono">+50</b> bonus per pick in the largest cluster</li>
+            <li><b class="mono">−25</b> for each wallet with no hidden links</li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <!-- Leaderboard -->
+  <main id="viewLeaderboard" class="view page" hidden>
+    <header class="page-head"><h1>Leaderboard</h1><p class="muted">Every token scanned on this instance, by trust score.</p></header>
+    <section class="card">
+      <table class="table"><thead><tr><th class="num">#</th><th>Token</th><th>Chain</th><th class="num hide-sm">Wallets → owners</th><th class="num">Clusters</th><th>Trust score</th><th class="num hide-sm">Scanned</th></tr></thead><tbody id="boardRows"></tbody></table>
+      <p class="empty" id="boardEmpty">No tokens scanned yet.</p>
+    </section>
+  </main>
+
+  <!-- Methodology -->
+  <main id="viewMethodology" class="view page prose" hidden>
+    <header class="page-head"><h1>Methodology</h1><p class="muted">How Veritas turns Nansen data into a trust score.</p></header>
+    <section class="card pad">
+      <h2>1. Collect</h2>
+      <p>Veritas pulls the top 200 holders of a token from Nansen's <code>tgm/holders</code> endpoint, plus Nansen's Smart Money and Exchange label groups. Exchanges and protocol contracts (pools, vaults, bridges) are recorded but excluded from ownership analysis.</p>
+      <h2>2. Link wallets</h2>
+      <p>For up to 120 of the largest remaining holders, Veritas queries <code>profiler/address/related-wallets</code>. Two holders are merged into one owner when they are directly related, or when they share a counterparty that is not an exchange or contract, such as the same <em>First Funder</em> or multisig. Merged groups are shown as clusters.</p>
+      <h2>3. Score</h2>
+      <p>Every token starts at 100. Bounded penalties are subtracted, and each one is listed as a finding.</p>
+      <table class="table"><thead><tr><th>Factor</th><th>Measure</th><th class="num">Max</th></tr></thead><tbody>
+        <tr><td>Owner concentration</td><td>Share held by the top 10 owners after merging clusters</td><td class="num mono">−30</td></tr>
+        <tr><td>Hidden clusters</td><td>Share held by the largest cluster and by all clusters</td><td class="num mono">−30</td></tr>
+        <tr><td>Insider selling</td><td>Supply moved out by clustered wallets over 7 days</td><td class="num mono">−15</td></tr>
+        <tr><td>Smart Money</td><td>Absent, exiting, or accumulating (+5) over 30 days</td><td class="num mono">−12</td></tr>
+        <tr><td>Fresh-wallet demand</td><td>New wallets out-buying proven traders (<code>tgm/flow-intelligence</code>)</td><td class="num mono">−5</td></tr>
+      </tbody></table>
+      <p>Grades: <b>Strong</b> 80+, <b>Fair</b> 60–79, <b>Caution</b> 40–59, <b>High risk</b> below 40.</p>
+      <h2>Limits</h2>
+      <p>Only the top holders are analysed. A shared funder is strong evidence of common control, not proof, so Veritas always shows the linking relation. Scores are heuristics for research, not financial advice.</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="vendor/3d-force-graph.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

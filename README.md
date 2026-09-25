@@ -29,6 +29,16 @@ Veritas makes the hidden structure visible:
 
 
 
+## Spot the Insider (game)
+
+Every round is a real token Veritas has scanned. The map shows the top holders with their clusters hidden. Pick up to five wallets you think are secretly run by one owner, then reveal the real clusters and links:
+
+- **+100** per pick that belongs to a hidden cluster
+- **+50** bonus per pick in the largest cluster
+- **−25** per wallet with no hidden links
+
+Three rounds per game. Your best score is kept in your browser. Any token where Veritas finds clusters becomes playable automatically.
+
 ## How the score works
 
 Veritas starts at 100 and subtracts transparent, bounded penalties. Each one appears in the UI as a finding.
@@ -69,7 +79,7 @@ You need **Node.js 18 or newer**. There are no dependencies to install.
 git clone <this repo>
 cd veritas
 cp .env.example .env        # then paste your key from https://app.nansen.ai/api
-npm start                   # → http://localhost:3000
+npm start                   # → http://localhost:3000 (site) and /app (dashboard)
 ```
 
 Scan a watchlist of tokens in one go. This fills the "Recently verified" leaderboard:
@@ -98,6 +108,17 @@ Veritas is a small Node server (it keeps your API key server-side), so it needs 
 - `READ_ONLY=true` turns off new live scans entirely. Visitors can still browse saved reports.
 
 **Pre-fill the site:** run `npm run batch` locally, then commit `data/reports/` and `data/calls.jsonl` before you deploy. Free hosts wipe the disk on restart, but committed reports ship with the app.
+
+## Pages
+
+| Path | What it is |
+|---|---|
+| `/` | Product site: what Veritas does, live totals, recent verifications |
+| `/app` | Dashboard: totals, grade distribution, recent and highest-risk tokens, Smart Money inflows |
+| `/app?chain=…&token=…` | Token view: holder map, holders and clusters tables, score breakdown, supply composition |
+| `/app?view=game` | Spot the Insider |
+| `/app?view=leaderboard` | Every scanned token by trust score |
+| `/report?chain=…&token=…` | Shareable project report with embeddable badge |
 
 ## Project layout
 

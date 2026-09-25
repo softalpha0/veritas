@@ -3,15 +3,15 @@
   const $ = (id) => document.getElementById(id);
 
   const COLORS = {
-    smart_money: "#d9a641",
+    smart_money: "#c98500",
     exchange: "#6b7480",
-    contract: "#8a84d6",
-    public_figure: "#c9739f",
-    whale: "#4aa3b8",
-    fresh: "#57a773",
+    contract: "#9085e9",
+    public_figure: "#d55181",
+    whale: "#3987e5",
+    fresh: "#199e70",
     holder: "#9aa3ae",
-    hub: "#e5534b",
-    clustered: "#e0766e",
+    hub: "#ff9b9b",
+    clustered: "#e66767",
   };
   const NAMES = {
     smart_money: "Smart Money",
@@ -89,7 +89,7 @@
 
   // ---------- Views ----------
   function showView(name) {
-    for (const v of ["Home", "Token", "Leaderboard", "Methodology"]) $(`view${v}`).hidden = v.toLowerCase() !== name;
+    for (const v of ["Home", "Token", "Game", "Leaderboard", "Methodology"]) $(`view${v}`).hidden = v.toLowerCase() !== name;
     document.querySelectorAll(".nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === (name === "token" ? "home" : name)));
   }
 
@@ -127,6 +127,7 @@
       .height(el.clientHeight)
       .backgroundColor("#111418")
       .showNavInfo(false)
+      .enableNodeDrag(false)
       .nodeId("id")
       .nodeRelSize(2.6)
       .nodeVal((n) => (n.kind === "hub" ? 3 : 0.25 + shareAt(n) * 500))
@@ -270,7 +271,7 @@
     setTokenHead(state.meta);
     setProgress("Connecting to Nansen…", 0.03);
     startOrbit();
-    const url = `/?chain=${encodeURIComponent(chain)}&token=${encodeURIComponent(token)}`;
+    const url = `/app?chain=${encodeURIComponent(chain)}&token=${encodeURIComponent(token)}`;
     if (location.pathname + location.search !== url) history.pushState(null, "", url);
 
     const params = new URLSearchParams({ chain, token, name: meta.name || "", symbol: meta.symbol || "" });
@@ -398,6 +399,37 @@
 
     renderHolders();
     renderClusters(r);
+    renderSupply();
+  }
+
+  // Stack order is fixed and validated (adjacent pairs pass CVD + normal-vision checks).
+  const SUPPLY_PARTS = [
+    { key: "clusters", label: "Hidden clusters", color: COLORS.clustered },
+    { key: "contracts", label: "Contracts / pools", color: COLORS.contract },
+    { key: "smart", label: "Smart Money", color: COLORS.smart_money },
+    { key: "other", label: "Other top holders", color: COLORS.whale },
+    { key: "exchanges", label: "Exchanges", color: COLORS.exchange },
+  ];
+
+  function renderSupply() {
+    const parts = { clusters: 0, contracts: 0, smart: 0, other: 0, exchanges: 0 };
+    for (const n of state.nodes.values()) {
+      if (n.kind !== "holder") continue;
+      if (n.category === "exchange") parts.exchanges += n.share;
+      else if (n.category === "contract") parts.contracts += n.share;
+      else if (n.cluster) parts.clusters += n.share;
+      else if (n.category === "smart_money") parts.smart += n.share;
+      else parts.other += n.share;
+    }
+    const top = Object.values(parts).reduce((a, b) => a + b, 0);
+    const rest = Math.max(0, 1 - top);
+    $("stackBar").innerHTML =
+      SUPPLY_PARTS.filter((p) => parts[p.key] > 0.0005)
+        .map((p) => `<span style="flex:${parts[p.key]};background:${p.color}" title="${esc(p.label)}: ${pct(parts[p.key])}"></span>`)
+        .join("") + (rest > 0.0005 ? `<span class="rest" style="flex:${rest}" title="Outside top holders: ${pct(rest)}"></span>` : "");
+    $("stackLegend").innerHTML =
+      SUPPLY_PARTS.map((p) => `<li><i style="background:${p.color}"></i><span>${esc(p.label)}</span><b class="mono">${pct(parts[p.key])}</b></li>`).join("") +
+      `<li><i class="rest"></i><span>Outside top holders</span><b class="mono">${pct(rest)}</b></li>`;
   }
 
   function renderHolders() {
@@ -543,7 +575,6 @@
   );
   $("fitBtn").addEventListener("click", () => { stopOrbit(); setHighlight(0); state.graph && state.graph.zoomToFit(700, 30); });
   $("walletClose").addEventListener("click", hideWallet);
-  $("focusSearch").addEventListener("click", () => $("query").focus());
   $("rescanBtn").addEventListener("click", () => startScan(state.chain, state.token, state.meta, true));
   $("tokenAddr").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText($("tokenAddr").dataset.full); toast("Address copied"); } catch { /* ignore */ }
@@ -554,7 +585,7 @@
     const m = r.metrics;
     const sym = state.meta.symbol ? `$${state.meta.symbol}` : "This token";
     const text = `${sym} scores ${r.score}/100 (${r.grade}) on Veritas.\n\n${m.owners} top wallets resolve to ${m.realOwners} owners. ${m.clusters} hidden clusters hold ${pct(m.clusteredShare)} of supply.\n\nBuilt on @nansen_ai`;
-    const url = `${location.origin}/?chain=${encodeURIComponent(r.chain)}&token=${encodeURIComponent(r.token)}`;
+    const url = `${location.origin}/app?chain=${encodeURIComponent(r.chain)}&token=${encodeURIComponent(r.token)}`;
     window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, "_blank", "noopener");
   });
 
@@ -567,30 +598,67 @@
     try {
       const s = await fetch("/api/stats").then((r) => r.json());
       $("callCount").textContent = s.successful.toLocaleString("en-US");
+      $("tCalls").textContent = s.successful.toLocaleString("en-US");
     } catch { /* ignore */ }
   }
 
   const tokenCell = (r) => `<div class="tok"><b>${esc(r.symbol || short(r.token))}</b><span class="muted">${esc(r.name || "")}</span></div>`;
   const open = (r) => startScan(r.chain, r.token, r);
 
+  const scoreCell = (sc) => `<div class="scorebar"><span class="mono" style="color:${scoreColor(sc)}">${sc}</span><div><div style="width:${sc}%;background:${scoreColor(sc)}"></div></div></div>`;
+  const GRADES = [
+    { name: "Strong", test: (s) => s >= 80, color: "var(--good)" },
+    { name: "Fair", test: (s) => s >= 60 && s < 80, color: "var(--muted)" },
+    { name: "Caution", test: (s) => s >= 40 && s < 60, color: "var(--warn)" },
+    { name: "High risk", test: (s) => s < 40, color: "var(--bad)" },
+  ];
+
   async function loadReports() {
     let list = [];
     try { list = await fetch("/api/reports").then((r) => r.json()); } catch { /* ignore */ }
+    state.reports = list;
+    const wallets = list.reduce((a, r) => a + (r.owners || 0), 0);
+    const clusters = list.reduce((a, r) => a + (r.clusters || 0), 0);
+    const scores = list.map((r) => r.score).sort((a, b) => a - b);
+    const median = scores.length ? (scores.length % 2 ? scores[(scores.length - 1) / 2] : Math.round((scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2)) : null;
+    $("tTokens").textContent = list.length.toLocaleString("en-US");
+    $("tWallets").textContent = wallets.toLocaleString("en-US");
+    $("tClusters").textContent = clusters.toLocaleString("en-US");
+    $("tMedian").textContent = median ?? "–";
+    if (median != null) $("tMedian").style.color = scoreColor(median);
+
     const recent = [...list].sort((a, b) => Date.parse(b.scannedAt) - Date.parse(a.scannedAt)).slice(0, 8);
     $("recentEmpty").hidden = recent.length > 0;
     $("recentRows").innerHTML = recent
-      .map((r, i) => `<tr class="clickable" data-i="${i}"><td>${tokenCell(r)}</td><td class="muted">${esc(r.chain)}</td><td class="num">${r.clusters ?? "–"}</td><td class="num">${pill(r.score)}</td></tr>`)
+      .map((r, i) => `<tr class="clickable" data-i="${i}"><td>${tokenCell(r)}</td><td class="muted">${esc(r.chain)}</td>
+        <td class="num hide-sm muted">${r.owners ?? "–"} → ${r.realOwners ?? "–"}</td><td class="num">${r.clusters ?? "–"}</td><td>${scoreCell(r.score)}</td></tr>`)
       .join("");
     $("recentRows").querySelectorAll("tr").forEach((tr) => tr.addEventListener("click", () => open(recent[Number(tr.dataset.i)])));
+
+    $("gradeTotal").textContent = list.length ? `${list.length} tokens` : "";
+    const maxCount = Math.max(1, ...GRADES.map((g) => scores.filter(g.test).length));
+    $("grades").innerHTML = GRADES.map((g) => {
+      const c = scores.filter(g.test).length;
+      return `<li><span class="grade-name"><i style="background:${g.color}"></i>${g.name}</span><div class="grade-bar"><div style="width:${(c / maxCount) * 100}%;background:${g.color}"></div></div><b class="mono">${c}</b></li>`;
+    }).join("");
+
+    const risky = [...list].sort((a, b) => a.score - b.score).slice(0, 5);
+    $("riskEmpty").hidden = risky.length > 0;
+    $("riskRows").innerHTML = risky
+      .map((r, i) => `<tr class="clickable" data-i="${i}"><td>${tokenCell(r)}</td><td class="num muted">${r.clusters ?? 0} clusters</td><td class="num">${pill(r.score)}</td></tr>`)
+      .join("");
+    $("riskRows").querySelectorAll("tr").forEach((tr) => tr.addEventListener("click", () => open(risky[Number(tr.dataset.i)])));
 
     $("boardEmpty").hidden = list.length > 0;
     $("boardRows").innerHTML = list
       .map(
         (r, i) => `<tr class="clickable" data-i="${i}"><td class="num muted">${i + 1}</td><td>${tokenCell(r)}</td><td class="muted">${esc(r.chain)}</td>
-          <td><span class="badge ${gradeClass(r.score)}">${esc(r.grade)}</span></td><td class="num">${r.clusters ?? "–"}</td><td class="num">${pill(r.score)}</td><td class="num muted">${ago(r.scannedAt)}</td></tr>`,
+          <td class="num hide-sm muted">${r.owners ?? "–"} → ${r.realOwners ?? "–"}</td><td class="num">${r.clusters ?? "–"}</td><td>${scoreCell(r.score)}</td><td class="num muted hide-sm">${ago(r.scannedAt)}</td></tr>`,
       )
       .join("");
     $("boardRows").querySelectorAll("tr").forEach((tr) => tr.addEventListener("click", () => open(list[Number(tr.dataset.i)])));
+    const best = readBest();
+    $("bestScore").textContent = best ? `Your best: ${best}` : "";
   }
 
   async function loadTrending() {
@@ -613,6 +681,180 @@
     } catch { /* optional */ }
   }
 
+  // ---------- Game: Spot the Insider ----------
+  // Every round is a real scanned token. Clusters stay hidden until reveal.
+  const ROUNDS = 3;
+  const game = { graph: null, rounds: [], round: 0, score: 0, report: null, picks: new Set(), revealed: false, maxPicks: 5 };
+
+  function readBest() {
+    try { return Number(localStorage.getItem("veritas.best") || 0); } catch { return 0; }
+  }
+  function saveBest(v) {
+    try { if (v > readBest()) localStorage.setItem("veritas.best", String(v)); } catch { /* storage unavailable */ }
+  }
+
+  function gameNodeColor(n) {
+    if (n.kind === "hub") return COLORS.hub;
+    const venue = n.category === "exchange" || n.category === "contract";
+    if (!game.revealed) return game.picks.has(n.id) ? "#5b8def" : venue ? "#2e3540" : "#9aa3ae";
+    const picked = game.picks.has(n.id);
+    if (picked && n.cluster) return "#3fb67a";
+    if (picked) return "#6b7480";
+    if (n.cluster) return COLORS.clustered;
+    return venue ? "#2e3540" : "#4a515c";
+  }
+
+  function initGameGraph() {
+    if (game.graph) return game.graph;
+    const el = $("gameGalaxy");
+    const g = ForceGraph3D({ controlType: "orbit" })(el)
+      .width(el.clientWidth)
+      .height(el.clientHeight)
+      .backgroundColor("#111418")
+      .showNavInfo(false)
+      .enableNodeDrag(false)
+      .nodeRelSize(2.6)
+      .nodeVal((n) => (n.kind === "hub" ? 3 : 0.25 + n.share * 500) * (game.picks.has(n.id) ? 1.8 : 1))
+      .nodeColor(gameNodeColor)
+      .nodeOpacity(0.95)
+      .nodeResolution(10)
+      .nodeLabel((n) => {
+        if (n.kind === "hub") return `<b>${esc(n.label || short(n.id))}</b><br><span style="color:#8a93a0">${esc(n.relation)}</span>`;
+        const d30 = n.amount - (n.history?.d30 ?? n.amount);
+        const venue = n.category === "exchange" || n.category === "contract";
+        return `<b>${esc(n.label || short(n.id))}</b><br><span style="color:#8a93a0">${pct(n.share)} of supply · 30d ${d30 ? amt(d30) : "no change"}${venue ? " · venue, not pickable" : ""}</span>`;
+      })
+      .linkColor(() => "#e66767")
+      .linkOpacity(0.5)
+      .linkWidth(0.5)
+      .onNodeClick(togglePick);
+    g.d3Force("link").distance(18);
+    g.d3Force("charge").strength(-26);
+    let simNodes = [];
+    const gravity = (alpha) => { for (const n of simNodes) { n.vx -= n.x * 0.04 * alpha; n.vy -= n.y * 0.04 * alpha; n.vz -= n.z * 0.04 * alpha; } };
+    gravity.initialize = (nodes) => { simNodes = nodes; };
+    g.d3Force("gravity", gravity);
+    new ResizeObserver(() => { if (el.clientWidth) g.width(el.clientWidth).height(el.clientHeight); }).observe(el);
+    game.graph = g;
+    return g;
+  }
+
+  async function startGame() {
+    showView("game");
+    game.score = 0;
+    game.round = 0;
+    $("gameScore").textContent = "0";
+    $("gameBest").textContent = readBest();
+    let list = state.reports;
+    if (!list) { try { list = await fetch("/api/reports").then((r) => r.json()); } catch { list = []; } }
+    const playable = list.filter((r) => (r.clusters || 0) > 0);
+    for (let i = playable.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [playable[i], playable[j]] = [playable[j], playable[i]]; }
+    game.rounds = playable.slice(0, ROUNDS);
+    if (!game.rounds.length) {
+      $("gameToken").textContent = "No playable tokens yet";
+      $("gameRound").textContent = "–";
+      $("gameBrief").innerHTML = `<p>The game only uses real scans. Scan a few tokens first; any token where Veritas finds hidden clusters becomes a round.</p><a class="btn btn-primary" href="/app">Go to dashboard</a>`;
+      $("revealBtn").disabled = true;
+      return;
+    }
+    initGameGraph();
+    loadRound();
+  }
+
+  async function loadRound() {
+    const meta = game.rounds[game.round];
+    game.picks = new Set();
+    game.revealed = false;
+    $("gameResult").hidden = true;
+    $("nextBtn").hidden = true;
+    $("revealBtn").hidden = false;
+    $("gameRound").textContent = `Round ${game.round + 1} / ${game.rounds.length}`;
+    $("gameToken").textContent = `${meta.symbol || short(meta.token)}${meta.name ? ` · ${meta.name}` : ""} · ${meta.chain}`;
+    let r;
+    try { r = await fetch(`/api/report?chain=${encodeURIComponent(meta.chain)}&token=${encodeURIComponent(meta.token)}`).then((x) => x.json()); } catch { return; }
+    game.report = r;
+    const holders = r.nodes.filter((n) => n.kind === "holder").map((n) => ({ ...n }));
+    const clustered = holders.filter((n) => n.cluster).length;
+    game.maxPicks = Math.min(5, clustered);
+    game.graph.graphData({ nodes: holders, links: [] });
+    setTimeout(() => game.graph.zoomToFit(800, 30), 1600);
+    $("gameBrief").innerHTML = `<p>Veritas found <b>${r.clusters.length} hidden cluster${r.clusters.length === 1 ? "" : "s"}</b> among the top ${holders.length} holders of this token: ${clustered} wallets secretly linked to each other.</p>
+      <p class="muted">Pick up to <b>${game.maxPicks}</b> wallets you think are insiders. Hover for hints: size, 30-day moves and Nansen labels. Grey-dark wallets are exchanges and contracts.</p>`;
+    renderPicks();
+  }
+
+  function togglePick(n) {
+    if (game.revealed || n.kind === "hub") return;
+    if (n.category === "exchange" || n.category === "contract") return toast("Exchanges and contracts can't be insiders here");
+    if (game.picks.has(n.id)) game.picks.delete(n.id);
+    else if (game.picks.size >= game.maxPicks) return toast(`You can pick up to ${game.maxPicks} wallets`);
+    else game.picks.add(n.id);
+    game.graph.nodeColor(game.graph.nodeColor()).nodeVal(game.graph.nodeVal());
+    renderPicks();
+  }
+
+  function renderPicks() {
+    const nodes = game.graph ? game.graph.graphData().nodes : [];
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    $("pickCount").textContent = `${game.picks.size} / ${game.maxPicks}`;
+    $("revealBtn").disabled = game.picks.size === 0 || game.revealed;
+    $("picks").innerHTML = game.picks.size
+      ? [...game.picks].map((id) => {
+          const n = byId.get(id);
+          const mark = !game.revealed ? "" : n.cluster ? `<span class="pos">Cluster ${n.cluster}</span>` : `<span class="muted">No links</span>`;
+          return `<li><span class="mono">${esc(short(id))}</span><span class="muted small">${esc(n.label || "")} ${pct(n.share)}</span>${mark}</li>`;
+        }).join("")
+      : `<li class="muted">No wallets picked yet.</li>`;
+  }
+
+  function reveal() {
+    const r = game.report;
+    game.revealed = true;
+    const nodes = game.graph.graphData().nodes;
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    let pts = 0, hits = 0;
+    for (const id of game.picks) {
+      const n = byId.get(id);
+      if (n.cluster) { hits++; pts += 100 + (n.cluster === 1 ? 50 : 0); } else pts -= 25;
+    }
+    game.score += pts;
+    $("gameScore").textContent = game.score;
+    // Bring in the real links and shared funders.
+    const hubs = r.nodes.filter((n) => n.kind === "hub").map((n) => ({ ...n }));
+    game.graph.graphData({ nodes: [...nodes, ...hubs], links: r.links.map((l) => ({ source: l.source, target: l.target })) });
+    game.graph.nodeColor(game.graph.nodeColor());
+    renderPicks();
+    const c1 = r.clusters[0];
+    const hub = c1 && c1.via.length ? r.nodes.find((n) => n.id === c1.via[0]) : null;
+    $("resultChip").textContent = `${hits} / ${game.picks.size} correct`;
+    $("resultChip").className = `badge ${hits === game.picks.size ? "badge-good" : hits ? "badge-warn" : "badge-bad"}`;
+    $("resultBody").innerHTML = `<p><b class="mono">${pts >= 0 ? "+" : "−"}${Math.abs(pts)}</b> points this round.</p>
+      <p class="muted">The largest cluster is <b>${c1.size} wallets</b> holding <b>${pct(c1.share)}</b> of supply${hub ? `, linked by <b>${esc(hub.relation)}</b>` : ""}. Green = your correct picks, red = insiders you missed.</p>
+      <a href="/app?chain=${encodeURIComponent(r.chain)}&token=${encodeURIComponent(r.token)}">Open the full report</a>`;
+    $("gameResult").hidden = false;
+    $("revealBtn").hidden = true;
+    const last = game.round + 1 >= game.rounds.length;
+    $("nextBtn").hidden = false;
+    $("nextBtn").textContent = last ? "Finish" : "Next token";
+  }
+
+  function next() {
+    if (game.round + 1 < game.rounds.length) {
+      game.round++;
+      return loadRound();
+    }
+    saveBest(game.score);
+    $("gameBest").textContent = readBest();
+    $("resultChip").textContent = "Game over";
+    $("resultChip").className = "badge";
+    $("resultBody").innerHTML = `<p>Final score <b class="mono">${game.score}</b> across ${game.rounds.length} real token${game.rounds.length === 1 ? "" : "s"}.</p><p class="muted">Your best: ${readBest()}</p>`;
+    $("nextBtn").textContent = "Play again";
+    $("nextBtn").onclick = () => { $("nextBtn").onclick = next; startGame(); };
+  }
+
+  $("revealBtn").addEventListener("click", reveal);
+  $("nextBtn").onclick = next;
+
   function route() {
     const p = new URLSearchParams(location.search);
     const token = p.get("token");
@@ -624,6 +866,7 @@
     if (state.source) state.source.close();
     stopOrbit();
     const view = p.get("view");
+    if (view === "game") return startGame();
     showView(view === "leaderboard" || view === "methodology" ? view : "home");
   }
   window.addEventListener("popstate", route);

@@ -149,7 +149,8 @@ function badge(report) {
 }
 
 function serveStatic(res, pathname) {
-  const rel = pathname === "/" ? "index.html" : pathname === "/report" ? "report.html" : pathname.slice(1);
+  const pages = { "/": "index.html", "/app": "app.html", "/report": "report.html" };
+  const rel = pages[pathname] || pathname.slice(1);
   const file = path.normalize(path.join(ROOT, "public", rel));
   if (!file.startsWith(path.join(ROOT, "public")) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(res, 404, "Not found", "text/plain");
   res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream" });
