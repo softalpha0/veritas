@@ -349,10 +349,9 @@
   function setTokenHead(meta, r) {
     $("tokenName").textContent = meta.symbol ? `${meta.symbol}${meta.name ? ` · ${meta.name}` : ""}` : meta.name || short(meta.address) || "Token";
     $("chainBadge").textContent = meta.chain || state.chain;
-    $("sampleTag").hidden = !meta.demo;
-    $("tokenAddr").textContent = meta.demo ? "sample" : short(meta.address || state.token);
+    $("tokenAddr").textContent = short(meta.address || state.token);
     $("tokenAddr").dataset.full = meta.address || state.token;
-    $("scanMeta").textContent = r ? `Scanned ${ago(r.scannedAt)} · ${r.calls} ${meta.demo ? "simulated" : "Nansen"} calls` : "";
+    $("scanMeta").textContent = r ? `Scanned ${ago(r.scannedAt)} · ${r.calls} Nansen calls` : "";
     $("reportLink").href = `/report?chain=${encodeURIComponent(meta.chain || state.chain)}&token=${encodeURIComponent(state.token)}`;
     document.title = `${meta.symbol || "Token"} · Veritas`;
   }
@@ -526,7 +525,6 @@
     e.preventDefault();
     const q = $("query").value.trim();
     if (!q) return;
-    if (/^demo$/i.test(q)) return startScan("ethereum", "demo");
     if (isAddress(q)) { $("query").value = ""; return startScan($("chain").value, q); }
     if (suggestions.length) return pick(suggestions[Math.max(0, active)]);
     toast("Pick a token from the list, or paste a contract address.");
@@ -545,7 +543,6 @@
   );
   $("fitBtn").addEventListener("click", () => { stopOrbit(); setHighlight(0); state.graph && state.graph.zoomToFit(700, 30); });
   $("walletClose").addEventListener("click", hideWallet);
-  $("demoBtn").addEventListener("click", () => startScan("ethereum", "demo"));
   $("focusSearch").addEventListener("click", () => $("query").focus());
   $("rescanBtn").addEventListener("click", () => startScan(state.chain, state.token, state.meta, true));
   $("tokenAddr").addEventListener("click", async () => {
@@ -573,8 +570,8 @@
     } catch { /* ignore */ }
   }
 
-  const tokenCell = (r) => `<div class="tok"><b>${esc(r.symbol || short(r.token))}</b><span class="muted">${esc(r.name || "")}${r.demo ? " · sample" : ""}</span></div>`;
-  const open = (r) => startScan(r.chain, r.demo ? "demo" : r.token, r);
+  const tokenCell = (r) => `<div class="tok"><b>${esc(r.symbol || short(r.token))}</b><span class="muted">${esc(r.name || "")}</span></div>`;
+  const open = (r) => startScan(r.chain, r.token, r);
 
   async function loadReports() {
     let list = [];
@@ -637,9 +634,9 @@
       state.live = cfg.live;
       $("chain").innerHTML = cfg.chains.map((c) => `<option value="${c}">${c}</option>`).join("");
       $("apiStatus").classList.toggle("live", cfg.live);
-      $("apiLabel").textContent = cfg.live ? "Nansen API" : "Demo mode";
+      $("apiLabel").textContent = cfg.live ? "Nansen API" : "No API key";
       $("modeNote").textContent = !cfg.live
-        ? "Demo mode: add a Nansen API key to .env to scan real tokens."
+        ? "No Nansen API key configured: add NANSEN_API_KEY to .env to start scanning."
         : cfg.readOnly
           ? "Read-only instance: browse verified tokens below."
           : "";

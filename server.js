@@ -6,7 +6,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NansenClient, api, callStats } from "./lib/nansen.js";
 import { scanToken } from "./lib/scan.js";
-import { DemoClient, DEMO_TOKEN, DEMO_META } from "./lib/demo.js";
 import { readReport, saveReport, listReports } from "./lib/reports.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -21,11 +20,10 @@ const SOL_ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 const live = Boolean(process.env.NANSEN_API_KEY);
 const client = live ? new NansenClient(process.env.NANSEN_API_KEY, { rps: Number(process.env.NANSEN_RPS || 4) }) : null;
-const demoClient = new DemoClient();
 const running = new Set();
 
 // Credit protection for public deployments:
-//   READ_ONLY=1              -> no new live scans; saved reports and the demo still work
+//   READ_ONLY=1              -> no new live scans; saved reports still work
 //   MAX_SCANS_PER_HOUR=20    -> cap on fresh live scans across all visitors
 const READ_ONLY = /^(1|true|yes)$/i.test(process.env.READ_ONLY || "");
 const MAX_SCANS_PER_HOUR = Number(process.env.MAX_SCANS_PER_HOUR || 20);
@@ -54,7 +52,6 @@ function send(res, status, body, type = "application/json") {
 
 
 function validTarget(chain, token) {
-  if (token === DEMO_TOKEN) return true;
   if (!CHAINS.includes(chain)) return false;
   return chain === "solana" ? SOL_ADDR.test(token) : EVM_ADDR.test(token);
 }
@@ -64,27 +61,26 @@ function validTarget(chain, token) {
 async function handleScan(req, res, q) {
   const chain = q.get("chain") || "ethereum";
   const token = (q.get("token") || "").trim();
-  const isDemo = token === DEMO_TOKEN;
   if (!validTarget(chain, token)) return send(res, 400, { error: "Invalid chain or token address." });
-  if (!isDemo && !live) return send(res, 400, { error: "No NANSEN_API_KEY configured. Add it to .env, or try the demo." });
+  if (!live) return send(res, 400, { error: "No NANSEN_API_KEY configured. Add it to .env." });
 
   res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
   const emit = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
-  const meta = isDemo ? DEMO_META : { name: q.get("name") || "", symbol: q.get("symbol") || "", chain, address: token };
+  const meta = { name: q.get("name") || "", symbol: q.get("symbol") || "", chain, address: token };
   emit("meta", meta);
 
-  const cached = readReport(isDemo ? "ethereum" : chain, token);
-  if (cached && !isDemo && !q.get("refresh") && Date.now() - Date.parse(cached.scannedAt) < REPORT_TTL_MS) {
+  const cached = readReport(chain, token);
+  if (cached && !q.get("refresh") && Date.now() - Date.parse(cached.scannedAt) < REPORT_TTL_MS) {
     emit("result", { ...cached, fromCache: true });
     return res.end();
   }
 
-  if (!isDemo && READ_ONLY) {
-    emit("failure", { message: "This public Veritas is read-only: open a token from the leaderboard, or run your own copy for live scans." });
+  if (READ_ONLY) {
+    emit("failure", { message: "This Veritas instance is read-only: open a token from the leaderboard, or run your own copy for live scans." });
     return res.end();
   }
-  if (!isDemo && scanBudgetLeft() <= 0) {
+  if (scanBudgetLeft() <= 0) {
     emit("failure", { message: "Scan limit reached for this hour. Try a token from the leaderboard, or come back soon." });
     return res.end();
   }
@@ -95,11 +91,11 @@ async function handleScan(req, res, q) {
     return res.end();
   }
   running.add(key);
-  if (!isDemo) scanTimes.push(Date.now());
+  scanTimes.push(Date.now());
   let closed = false;
   req.on("close", () => { closed = true; });
   try {
-    const result = await scanToken(isDemo ? demoClient : client, isDemo ? "ethereum" : chain, token, (e, d) => { if (!closed) emit(e, d); });
+    const result = await scanToken(client, chain, token, (e, d) => { if (!closed) emit(e, d); });
     const report = { ...result, meta };
     saveReport(report);
     if (!closed) emit("result", report);
@@ -114,12 +110,11 @@ async function handleScan(req, res, q) {
 async function handleSearch(res, q) {
   const query = (q.get("q") || "").trim();
   if (!query) return send(res, 400, { error: "Missing q" });
-  const demo = /^demo$/i.test(query) ? [DEMO_META] : [];
-  if (!live) return send(res, 200, { tokens: demo, live });
+  if (!live) return send(res, 200, { tokens: [], live });
   try {
     const r = await api.searchTokens(client, query);
     const tokens = (r.data?.tokens || []).filter((t) => CHAINS.includes(t.chain) && validTarget(t.chain, t.address));
-    send(res, 200, { tokens: [...demo, ...tokens], live });
+    send(res, 200, { tokens, live });
   } catch (e) {
     send(res, 502, { error: e.message });
   }
@@ -193,8 +188,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`\n  ✦ Veritas running at http://localhost:${PORT}`);
-  console.log(live ? "  Live mode: using your Nansen API key." : "  Demo mode: no NANSEN_API_KEY found. Add it to .env for live data.");
+  console.log(`\n  Veritas running at http://localhost:${PORT}`);
+  console.log(live ? "  Live mode: using your Nansen API key." : "  No NANSEN_API_KEY found: add it to .env to scan tokens (see .env.example).");
   if (live) console.log(READ_ONLY ? "  Read-only: new live scans are disabled." : `  Live scans capped at ${MAX_SCANS_PER_HOUR} per hour (MAX_SCANS_PER_HOUR).`);
   console.log("");
 });

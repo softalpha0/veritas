@@ -6,7 +6,6 @@ Veritas turns [Nansen](https://nansen.ai) on-chain intelligence into a **trust s
 
 Built for the **Nansen Meridian Buildathon** (Sept 14–27, 2026).
 
-![Veritas token view](docs/galaxy.png)
 
 ## Why
 
@@ -28,9 +27,7 @@ Veritas makes the hidden structure visible:
 5. **Rewind holdings** 30 days, 7 days or 24 hours to watch who accumulated and who distributed.
 6. **Share it.** Post the result on X, or open the project report with its embeddable badge.
 
-![Zooming into a hidden cluster](docs/cluster.png)
 
-![Holder table](docs/holders.png)
 
 ## How the score works
 
@@ -75,8 +72,6 @@ cp .env.example .env        # then paste your key from https://app.nansen.ai/api
 npm start                   # → http://localhost:3000
 ```
 
-Without a key, Veritas runs in **demo mode** on a clearly labelled synthetic token, so you can explore the full experience right away.
-
 Scan a watchlist of tokens in one go. This fills the "Recently verified" leaderboard:
 
 ```bash
@@ -100,7 +95,7 @@ Veritas is a small Node server (it keeps your API key server-side), so it needs 
 
 **Protect your credits on a public site:**
 - `MAX_SCANS_PER_HOUR` (default 20) caps fresh live scans across all visitors.
-- `READ_ONLY=true` turns off new live scans entirely. Visitors can still browse saved reports and the demo.
+- `READ_ONLY=true` turns off new live scans entirely. Visitors can still browse saved reports.
 
 **Pre-fill the site:** run `npm run batch` locally, then commit `data/reports/` and `data/calls.jsonl` before you deploy. Free hosts wipe the disk on restart, but committed reports ship with the app.
 
@@ -111,11 +106,10 @@ server.js            HTTP server + Server-Sent Events scan stream (zero dependen
 lib/nansen.js        Nansen client: rate limiting, retries, disk cache, call log
 lib/scan.js          Orchestrates one scan and streams progress to the browser
 lib/analyze.js       Pure analysis: clustering (union-find) and the trust score
-lib/demo.js          Synthetic data in Nansen's exact response shapes (demo mode)
 lib/reports.js       Saved reports for the leaderboard, report pages and badges
 public/              Front end: scanner, holder map (3d-force-graph, vendored), tables, report page
 scripts/batch-scan.js Scan many tokens at once
-test/                node:test unit + end-to-end tests
+test/                node:test unit + end-to-end tests (test/support has a fake Nansen client for offline tests)
 ```
 
 ## Embeddable badge
@@ -128,7 +122,6 @@ Any scanned token has a live badge:
 </a>
 ```
 
-![Project report](docs/report.png)
 
 ## Limits and honesty
 

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeHolders, buildGraph, scoreToken, classify } from "../lib/analyze.js";
 import { scanToken } from "../lib/scan.js";
-import { DemoClient } from "../lib/demo.js";
+import { FakeNansenClient, FAKE_TOKEN } from "./support/fake-nansen.js";
 
 const row = (address, share, extra = {}) => ({
   address, address_label: "", token_amount: share * 1e9, ownership_percentage: share, value_usd: share * 1e8,
@@ -76,9 +76,9 @@ test("clustered supply lowers the score and is explained", () => {
   assert.equal(risky.metrics.realOwners, 41);
 });
 
-test("demo scan runs end to end through the real pipeline", async () => {
+test("a full scan runs end to end through the real pipeline", async () => {
   const events = [];
-  const r = await scanToken(new DemoClient({ delayMs: 0 }), "ethereum", "demo", (e) => events.push(e));
+  const r = await scanToken(new FakeNansenClient({ delayMs: 0 }), "ethereum", FAKE_TOKEN, (e) => events.push(e));
   assert.ok(r.nodes.length >= 200);
   assert.ok(r.clusters.length >= 3);
   assert.ok(r.score >= 0 && r.score <= 100);
@@ -88,9 +88,9 @@ test("demo scan runs end to end through the real pipeline", async () => {
 
 test("request bodies match Nansen's official guided-workflow shapes", async () => {
   const sent = [];
-  const demo = new DemoClient({ delayMs: 0 });
-  const recorder = { post: (endpoint, body) => { sent.push({ endpoint, body }); return demo.post(endpoint, body); } };
-  await scanToken(recorder, "ethereum", "demo", () => {}, { investigate: 3 });
+  const fake = new FakeNansenClient({ delayMs: 0 });
+  const recorder = { post: (endpoint, body) => { sent.push({ endpoint, body }); return fake.post(endpoint, body); } };
+  await scanToken(recorder, "ethereum", FAKE_TOKEN, () => {}, { investigate: 3 });
   const holders = sent.filter((c) => c.endpoint === "tgm/holders");
   assert.ok(holders.length >= 3);
   for (const { body } of holders) {

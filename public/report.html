@@ -70,7 +70,7 @@
       <div class="rep-head">
         <div>
           <h1>${esc(sym)}${r.meta?.name ? ` · ${esc(r.meta.name)}` : ""}</h1>
-          <div class="rep-sub"><span class="badge">${esc(r.chain)}</span>${r.meta?.demo ? '<span class="badge badge-warn">Sample data</span>' : `<span class="mono">${esc(short(r.token))}</span>`}
+          <div class="rep-sub"><span class="badge">${esc(r.chain)}</span><span class="mono">${esc(short(r.token))}</span>
             <span>Scanned ${new Date(r.scannedAt).toUTCString().replace(" GMT", " UTC")}</span></div>
         </div>
         <div class="rep-score"><span class="score mono" style="color:${scoreColor(r.score)}">${r.score}</span><span class="muted"> / 100</span><div><span class="badge ${gradeClass(r.score)}">${esc(r.grade)}</span></div></div>
@@ -93,7 +93,7 @@
         <textarea id="embedCode" rows="3" readonly>&lt;a href="${pageUrl}"&gt;&lt;img src="${badgeUrl}" alt="Veritas trust score" height="24"&gt;&lt;/a&gt;</textarea>
         <button class="btn" id="copyBtn" style="margin-top:8px">Copy embed code</button>
       </div></section>
-      <p class="foot">Data: Nansen API (${r.calls} ${r.meta?.demo ? "simulated" : ""} calls). Heuristic analysis of public on-chain data. Not financial advice.</p>`;
+      <p class="foot">Data: Nansen API (${r.calls} calls). Heuristic analysis of public on-chain data. Not financial advice.</p>`;
     document.getElementById("copyBtn").onclick = async () => {
       const ta = document.getElementById("embedCode");
       try { await navigator.clipboard.writeText(ta.value); } catch { ta.select(); document.execCommand("copy"); }
