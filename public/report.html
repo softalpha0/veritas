@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Veritas Report</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .report { max-width: 900px; margin: 0 auto; padding: 28px 20px 56px; }
+    .rep-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
+    .rep-head h1 { font-size: 24px; margin-bottom: 6px; }
+    .rep-sub { color: var(--muted); font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .rep-score { text-align: right; }
+    .rep-score .score { font-size: 48px; }
+    .rep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .rep-grid .card { min-width: 0; }
+    section.card { margin-bottom: 16px; }
+    .embed { padding: 16px; }
+    .embed img { display: block; margin-bottom: 12px; }
+    textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font: 12px/1.5 var(--mono); resize: vertical; }
+    .foot { color: var(--faint); font-size: 12px; margin-top: 24px; }
+    @media (max-width: 720px) { .rep-grid { grid-template-columns: 1fr; } .rep-score { text-align: left; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Veritas home">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="5" fill="var(--accent)"/><path d="M7 7l5 10 5-10" fill="none" stroke="#0b0d10" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Veritas</span>
+    </a>
+    <span class="muted small">Token holder report</span>
+    <a id="openApp" class="btn" style="margin-left:auto" href="/">Open in app</a>
+  </header>
+  <main class="report" id="content"><p class="empty">Loading report…</p></main>
+  <script>
+  (async () => {
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const pct = (x) => `${(x * 100).toFixed(Math.abs(x) > 0 && Math.abs(x) < 0.01 ? 2 : 1)}%`;
+    const short = (a) => (a && a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a || "");
+    const gradeClass = (s) => (s >= 80 ? "badge-good" : s >= 60 ? "" : s >= 40 ? "badge-warn" : "badge-bad");
+    const scoreColor = (s) => (s >= 80 ? "var(--good)" : s >= 60 ? "var(--text)" : s >= 40 ? "var(--warn)" : "var(--bad)");
+    const p = new URLSearchParams(location.search);
+    const q = `chain=${encodeURIComponent(p.get("chain") || "ethereum")}&token=${encodeURIComponent(p.get("token") || "")}`;
+    document.getElementById("openApp").href = `/?${q}`;
+    const el = document.getElementById("content");
+    const res = await fetch(`/api/report?${q}`);
+    if (!res.ok) { el.innerHTML = `<p class="empty">No report for this token yet. <a href="/?${q}">Scan it now</a>.</p>`; return; }
+    const r = await res.json();
+    const m = r.metrics;
+    const sym = r.meta?.symbol || "Token";
+    document.title = `${sym} · Veritas Report`;
+    const badgeUrl = `${location.origin}/api/badge.svg?${q}`;
+    const pageUrl = `${location.origin}/report?${q}`;
+    const factors = (r.factors || []).map((f) => {
+      const w = Math.min(100, (Math.abs(f.impact) / f.max) * 100);
+      const color = f.impact > 0 ? "var(--good)" : f.impact < 0 ? (Math.abs(f.impact) / f.max > 0.5 ? "var(--bad)" : "var(--warn)") : "var(--border-strong)";
+      const val = f.impact > 0 ? `+${f.impact}` : f.impact < 0 ? `−${-f.impact}` : "0";
+      return `<li><span>${esc(f.label)}</span><span class="val" style="color:${f.impact ? color : "var(--muted)"}">${val}</span><div class="bar"><div style="width:${w}%;background:${color}"></div></div></li>`;
+    }).join("");
+    const kv = [
+      ["Wallets analysed", m.owners], ["Distinct owners", m.realOwners], ["Top 10 owners hold", pct(m.top10Entities)],
+      ["Effective owners (HHI)", m.effectiveOwners], ["Clustered supply", `${pct(m.clusteredShare)} · ${m.clusters}`],
+      ["Smart Money holders", `${m.smartMoney} · ${pct(m.smartShare)}`], ["Held on exchanges", pct(m.exchangeShare)], ["Held in contracts / pools", pct(m.contractShare)],
+    ].map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+    el.innerHTML = `
+      <div class="rep-head">
+        <div>
+          <h1>${esc(sym)}${r.meta?.name ? ` · ${esc(r.meta.name)}` : ""}</h1>
+          <div class="rep-sub"><span class="badge">${esc(r.chain)}</span>${r.meta?.demo ? '<span class="badge badge-warn">Sample data</span>' : `<span class="mono">${esc(short(r.token))}</span>`}
+            <span>Scanned ${new Date(r.scannedAt).toUTCString().replace(" GMT", " UTC")}</span></div>
+        </div>
+        <div class="rep-score"><span class="score mono" style="color:${scoreColor(r.score)}">${r.score}</span><span class="muted"> / 100</span><div><span class="badge ${gradeClass(r.score)}">${esc(r.grade)}</span></div></div>
+      </div>
+      <div class="rep-grid">
+        <section class="card"><header class="card-head"><h2>Score breakdown</h2></header><ul class="factors" style="border-top:0">${factors}</ul></section>
+        <section class="card"><header class="card-head"><h2>Holder structure</h2></header><dl class="kv">${kv}</dl></section>
+      </div>
+      <section class="card"><header class="card-head"><h2>Findings</h2></header><ul class="findings">${r.findings.map((f) => `<li class="${f.severity}"><span class="sev"></span><b>${esc(f.title)}</b><span class="impact">${f.impact > 0 ? "+" : f.impact < 0 ? "−" : ""}${f.impact ? Math.abs(f.impact) : ""}</span><p>${esc(f.detail)}</p></li>`).join("")}</ul></section>
+      <section class="card"><header class="card-head"><h2>Wallet clusters</h2><span class="muted small">${r.clusters.length} found</span></header>${
+        r.clusters.length
+          ? `<table class="table"><thead><tr><th>Cluster</th><th class="num">Wallets</th><th class="num">Supply</th><th class="num">7d change</th><th>Linked by</th></tr></thead><tbody>${r.clusters.slice(0, 20).map((c) => {
+              const hub = r.nodes.find((n) => n.id === c.via[0]);
+              return `<tr><td><b>Cluster ${c.id}</b></td><td class="num">${c.size}</td><td class="num">${pct(c.share)}</td><td class="num ${c.change7dShare > 0 ? "pos" : c.change7dShare < 0 ? "neg" : "muted"}">${c.change7dShare ? (c.change7dShare > 0 ? "+" : "−") + pct(Math.abs(c.change7dShare)) : "–"}</td><td class="muted">${esc(hub ? `${hub.relation} · ${hub.label || short(hub.id)}` : "Direct transfers")}</td></tr>`;
+            }).join("")}</tbody></table>`
+          : '<p class="empty">No linked wallets found among the top holders.</p>'
+      }</section>
+      <section class="card"><header class="card-head"><h2>Embed badge</h2><span class="muted small">For project websites and docs</span></header><div class="embed">
+        <img src="${badgeUrl}" alt="Veritas trust badge" height="24" />
+        <textarea id="embedCode" rows="3" readonly>&lt;a href="${pageUrl}"&gt;&lt;img src="${badgeUrl}" alt="Veritas trust score" height="24"&gt;&lt;/a&gt;</textarea>
+        <button class="btn" id="copyBtn" style="margin-top:8px">Copy embed code</button>
+      </div></section>
+      <p class="foot">Data: Nansen API (${r.calls} ${r.meta?.demo ? "simulated" : ""} calls). Heuristic analysis of public on-chain data. Not financial advice.</p>`;
+    document.getElementById("copyBtn").onclick = async () => {
+      const ta = document.getElementById("embedCode");
+      try { await navigator.clipboard.writeText(ta.value); } catch { ta.select(); document.execCommand("copy"); }
+      document.getElementById("copyBtn").textContent = "Copied";
+    };
+  })();
+  </script>
+</body>
+</html>

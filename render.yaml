@@ -1,0 +1,16 @@
+# One-click deploy on Render (https://render.com): New > Blueprint > pick this repo.
+# Set NANSEN_API_KEY in the Render dashboard; never commit it.
+services:
+  - type: web
+    name: veritas
+    runtime: node
+    plan: free
+    buildCommand: "echo no build step"
+    startCommand: node server.js
+    envVars:
+      - key: NANSEN_API_KEY
+        sync: false
+      - key: READ_ONLY
+        value: "false"
+      - key: MAX_SCANS_PER_HOUR
+        value: "10"

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Veritas · Token holder intelligence</title>
+  <meta name="description" content="Veritas scores any token on who really holds it: hidden wallet clusters, owner concentration and Smart Money conviction, built on Nansen data." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Veritas home">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="5" fill="var(--accent)"/><path d="M7 7l5 10 5-10" fill="none" stroke="#0b0d10" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Veritas</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="/" data-view="home">Scanner</a>
+      <a href="/?view=leaderboard" data-view="leaderboard">Leaderboard</a>
+      <a href="/?view=methodology" data-view="methodology">Methodology</a>
+    </nav>
+    <form id="searchForm" class="search" autocomplete="off" role="search">
+      <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input id="query" type="text" placeholder="Search token or paste contract address" aria-label="Token" />
+      <select id="chain" aria-label="Chain"></select>
+      <kbd>/</kbd>
+      <ul id="suggestions" class="suggestions" hidden></ul>
+    </form>
+    <div class="status" id="apiStatus" title="Nansen API calls made by this instance">
+      <span class="dot"></span><span id="apiLabel">Nansen API</span><span class="sep">·</span><span id="callCount" class="mono">0</span>&nbsp;calls
+    </div>
+  </header>
+
+  <!-- Home -->
+  <main id="viewHome" class="view home" hidden>
+    <section class="home-hero">
+      <h1>Who really holds this token?</h1>
+      <p>Veritas scores tokens on their holder base. It merges wallets controlled by the same owner, measures real concentration, and tracks what insiders and Smart Money are doing, using Nansen's labelled on-chain data.</p>
+      <div class="home-actions">
+        <button class="btn btn-primary" id="focusSearch">Scan a token</button>
+        <button class="btn" id="demoBtn">View sample report</button>
+        <span id="modeNote" class="muted small"></span>
+      </div>
+    </section>
+    <div class="home-grid">
+      <section class="card" id="trendingCard" hidden>
+        <header class="card-head"><h2>Smart Money net inflows</h2><span class="muted small">7d · Ethereum</span></header>
+        <table class="table"><thead><tr><th>Token</th><th class="num">Net inflow</th><th></th></tr></thead><tbody id="trendRows"></tbody></table>
+      </section>
+      <section class="card">
+        <header class="card-head"><h2>Recently verified</h2><a class="small" href="/?view=leaderboard">View all</a></header>
+        <table class="table"><thead><tr><th>Token</th><th>Chain</th><th class="num">Clusters</th><th class="num">Score</th></tr></thead><tbody id="recentRows"></tbody></table>
+        <p class="empty" id="recentEmpty">No tokens scanned yet. Search for one above.</p>
+      </section>
+    </div>
+  </main>
+
+  <!-- Token -->
+  <main id="viewToken" class="view token" hidden>
+    <section class="token-bar">
+      <div class="token-id">
+        <div class="token-title"><h1 id="tokenName">–</h1><span id="chainBadge" class="badge"></span><span id="sampleTag" class="badge badge-warn" hidden>Sample data</span></div>
+        <div class="token-meta"><button class="addr mono" id="tokenAddr" title="Copy address"></button><span class="muted" id="scanMeta"></span></div>
+      </div>
+      <div class="token-actions">
+        <button class="btn" id="rescanBtn">Rescan</button>
+        <a class="btn" id="reportLink" href="#" target="_blank" rel="noopener">Report</a>
+        <button class="btn" id="shareBtn">Share</button>
+      </div>
+      <div class="scan-progress" id="progress" hidden><div class="scan-bar"><div id="progressBar"></div></div><span id="progressText" class="small"></span></div>
+    </section>
+
+    <div class="token-body">
+      <section class="card main-card">
+        <header class="tabs" role="tablist">
+          <button role="tab" data-tab="map" class="active">Holder map</button>
+          <button role="tab" data-tab="holders">Holders <span class="count" id="holderCount"></span></button>
+          <button role="tab" data-tab="clusters">Clusters <span class="count" id="clusterCount"></span></button>
+          <div class="tab-tools" id="mapTools">
+            <div class="seg" id="timeline" role="group" aria-label="Holdings as of">
+              <button data-t="0">30D</button><button data-t="1">7D</button><button data-t="2">24H</button><button data-t="3" class="active">Now</button>
+            </div>
+            <button class="icon-btn" id="fitBtn" title="Fit to view" aria-label="Fit to view"><svg viewBox="0 0 20 20" width="15" height="15"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+          </div>
+        </header>
+        <div class="tab-panel" data-panel="map">
+          <div id="galaxy" aria-label="Holder map"></div>
+          <ul class="legend" id="legend"></ul>
+          <div id="wallet" class="wallet" hidden>
+            <button class="close" id="walletClose" aria-label="Close">×</button>
+            <div id="walletBody"></div>
+          </div>
+        </div>
+        <div class="tab-panel scroll" data-panel="holders" hidden>
+          <table class="table table-dense"><thead><tr><th class="num">#</th><th>Wallet</th><th>Type</th><th class="num">Supply</th><th class="num">Value</th><th class="num">30d change</th><th class="num">Cluster</th></tr></thead><tbody id="holderRows"></tbody></table>
+        </div>
+        <div class="tab-panel scroll" data-panel="clusters" hidden>
+          <table class="table"><thead><tr><th>Cluster</th><th class="num">Wallets</th><th class="num">Supply</th><th class="num">7d change</th><th>Linked by</th><th></th></tr></thead><tbody id="clusterRows"></tbody></table>
+          <p class="empty" id="clustersEmpty" hidden>No linked wallets found among the top holders.</p>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="card score-card">
+          <header class="card-head"><h2>Trust score</h2><span id="gradeChip" class="badge"></span></header>
+          <div class="score-row"><span id="scoreNum" class="score mono">–</span><span class="muted">/ 100</span></div>
+          <div class="score-track"><div id="scoreFill"></div></div>
+          <ul class="factors" id="factors"></ul>
+        </section>
+        <section class="card">
+          <header class="card-head"><h2>Holder structure</h2></header>
+          <dl class="kv" id="metrics"></dl>
+        </section>
+        <section class="card">
+          <header class="card-head"><h2>Findings</h2></header>
+          <ul class="findings" id="findings"></ul>
+        </section>
+        <p class="disclaimer">Heuristic analysis of public on-chain data from Nansen. Not financial advice.</p>
+      </aside>
+    </div>
+  </main>
+
+  <!-- Leaderboard -->
+  <main id="viewLeaderboard" class="view page" hidden>
+    <header class="page-head"><h1>Leaderboard</h1><p class="muted">Every token scanned on this instance, by trust score.</p></header>
+    <section class="card">
+      <table class="table"><thead><tr><th class="num">#</th><th>Token</th><th>Chain</th><th>Grade</th><th class="num">Clusters</th><th class="num">Score</th><th class="num">Scanned</th></tr></thead><tbody id="boardRows"></tbody></table>
+      <p class="empty" id="boardEmpty">No tokens scanned yet.</p>
+    </section>
+  </main>
+
+  <!-- Methodology -->
+  <main id="viewMethodology" class="view page prose" hidden>
+    <header class="page-head"><h1>Methodology</h1><p class="muted">How Veritas turns Nansen data into a trust score.</p></header>
+    <section class="card pad">
+      <h2>1. Collect</h2>
+      <p>Veritas pulls the top 200 holders of a token from Nansen's <code>tgm/holders</code> endpoint, plus Nansen's Smart Money and Exchange label groups. Exchanges and protocol contracts (pools, vaults, bridges) are recorded but excluded from ownership analysis.</p>
+      <h2>2. Link wallets</h2>
+      <p>For up to 120 of the largest remaining holders, Veritas queries <code>profiler/address/related-wallets</code>. Two holders are merged into one owner when they are directly related, or when they share a counterparty that is not an exchange or contract, such as the same <em>First Funder</em> or multisig. Merged groups are shown as clusters.</p>
+      <h2>3. Score</h2>
+      <p>Every token starts at 100. Bounded penalties are subtracted, and each one is listed as a finding.</p>
+      <table class="table"><thead><tr><th>Factor</th><th>Measure</th><th class="num">Max</th></tr></thead><tbody>
+        <tr><td>Owner concentration</td><td>Share held by the top 10 owners after merging clusters</td><td class="num mono">−30</td></tr>
+        <tr><td>Hidden clusters</td><td>Share held by the largest cluster and by all clusters</td><td class="num mono">−30</td></tr>
+        <tr><td>Insider selling</td><td>Supply moved out by clustered wallets over 7 days</td><td class="num mono">−15</td></tr>
+        <tr><td>Smart Money</td><td>Absent, exiting, or accumulating (+5) over 30 days</td><td class="num mono">−12</td></tr>
+        <tr><td>Fresh-wallet demand</td><td>New wallets out-buying proven traders (<code>tgm/flow-intelligence</code>)</td><td class="num mono">−5</td></tr>
+      </tbody></table>
+      <p>Grades: <b>Strong</b> 80+, <b>Fair</b> 60–79, <b>Caution</b> 40–59, <b>High risk</b> below 40.</p>
+      <h2>Limits</h2>
+      <p>Only the top holders are analysed. A shared funder is strong evidence of common control, not proof, so Veritas always shows the linking relation. Scores are heuristics for research, not financial advice.</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="vendor/3d-force-graph.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
