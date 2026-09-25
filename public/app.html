@@ -20,6 +20,7 @@
     <nav class="nav" aria-label="Main">
       <a href="/app" data-view="home">Dashboard</a>
       <a href="/app?view=markets" data-view="markets">Markets</a>
+      <a href="/app?view=markets&mode=fresh&chain=solana" data-view="meme">Meme Radar</a>
       <a href="/app?view=leaderboard" data-view="leaderboard">Leaderboard</a>
       <a href="/app?view=game" data-view="game">Spot the Insider</a>
       <a href="/app?view=methodology" data-view="methodology">Methodology</a>
@@ -101,6 +102,7 @@
           <button role="tab" data-tab="map" class="active">Holder map</button>
           <button role="tab" data-tab="holders">Holders <span class="count" id="holderCount"></span></button>
           <button role="tab" data-tab="clusters">Clusters <span class="count" id="clusterCount"></span></button>
+          <button role="tab" data-tab="traders">Buyers &amp; sellers <span class="count">24h</span></button>
           <div class="tab-tools" id="mapTools">
             <div class="seg" id="timeline" role="group" aria-label="Holdings as of">
               <button data-t="0">30D</button><button data-t="1">7D</button><button data-t="2">24H</button><button data-t="3" class="active">Now</button>
@@ -123,6 +125,13 @@
           <table class="table"><thead><tr><th>Cluster</th><th class="num">Wallets</th><th class="num">Supply</th><th class="num">7d change</th><th>Linked by</th><th></th></tr></thead><tbody id="clusterRows"></tbody></table>
           <p class="empty" id="clustersEmpty" hidden>No linked wallets found among the top holders.</p>
         </div>
+        <div class="tab-panel scroll" data-panel="traders" hidden>
+          <div class="traders-grid">
+            <div><h3 class="sub-head">Top buyers</h3><table class="table table-dense"><thead><tr><th>Wallet</th><th class="num">Bought</th></tr></thead><tbody id="buyerRows"></tbody></table></div>
+            <div><h3 class="sub-head">Top sellers</h3><table class="table table-dense"><thead><tr><th>Wallet</th><th class="num">Sold</th></tr></thead><tbody id="sellerRows"></tbody></table></div>
+          </div>
+          <p class="empty" id="tradersNote" hidden></p>
+        </div>
       </section>
 
       <aside class="side">
@@ -138,6 +147,10 @@
             <div class="stack" id="stackBar" role="img" aria-label="Supply composition"></div>
             <ul class="stack-legend" id="stackLegend"></ul>
           </div>
+        </section>
+        <section class="card" id="flowCard" hidden>
+          <header class="card-head"><h2>Net flows</h2><span class="muted small" id="flowWindow"></span></header>
+          <ul class="flows" id="flows"></ul>
         </section>
         <section class="card">
           <header class="card-head"><h2>Holder structure</h2></header>
@@ -201,11 +214,12 @@
   <!-- Markets -->
   <main id="viewMarkets" class="view page wide" hidden>
     <header class="page-head row">
-      <div><h1>Markets</h1><p class="muted">Live token lists from Nansen's token screener. Pick any token and scan who really holds it.</p></div>
+      <div><h1 id="mktTitle">Markets</h1><p class="muted" id="mktSub">Live token lists from Nansen's token screener. Pick any token and scan who really holds it.</p></div>
     </header>
     <div class="market-bar">
       <div class="chain-tabs" id="chainTabs" role="tablist" aria-label="Chain"></div>
       <div class="market-filters">
+        <div class="seg" id="mktMode" role="group" aria-label="Tokens"><button data-v="all" class="active">All tokens</button><button data-v="fresh">New launches ≤7d</button></div>
         <div class="seg" id="mktTime" role="group" aria-label="Timeframe"><button data-v="1h">1H</button><button data-v="24h" class="active">24H</button><button data-v="7d">7D</button></div>
         <div class="seg" id="mktTraders" role="group" aria-label="Traders"><button data-v="0" class="active">All traders</button><button data-v="1">Smart Money</button></div>
       </div>

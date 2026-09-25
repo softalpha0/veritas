@@ -113,6 +113,12 @@ export class FakeNansenClient {
       case "token-screener":
         res = { data: [{ chain: "ethereum", token_address: FAKE_TOKEN, token_symbol: "FIX", price_usd: 0.42, price_change: 0.031, market_cap_usd: 420_000_000, liquidity: 12_000_000, volume: 8_400_000, netflow: 310_000, token_age_days: 400 }], pagination: { page: 1, per_page: 50, is_last_page: true } };
         break;
+      case "tgm/who-bought-sold": {
+        const side = body.buy_or_sell;
+        const rows = d.holders.slice(10, 22).map((h, i) => ({ address: h.address, address_label: h.address_label, bought_volume_usd: side === "BUY" ? 90_000 / (i + 1) : 0, sold_volume_usd: side === "SELL" ? 70_000 / (i + 1) : 0 }));
+        res = { data: rows, pagination: { page: 1, per_page: 25, is_last_page: true } };
+        break;
+      }
       case "tgm/flow-intelligence":
         res = { data: [{ smart_trader_net_flow_usd: 412_000, top_pnl_net_flow_usd: 150_000, whale_net_flow_usd: -2_100_000, fresh_wallets_net_flow_usd: 2_900_000, exchange_net_flow_usd: 1_700_000 }] };
         break;

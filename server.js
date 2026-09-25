@@ -122,7 +122,7 @@ async function handleSearch(res, q) {
 
 // Market list per chain from Nansen's token screener, joined with saved trust scores.
 const SCREENER_TIMEFRAMES = ["1h", "24h", "7d"];
-const SCREENER_SORTS = ["volume", "market_cap_usd", "netflow", "buy_volume", "price_change", "liquidity"];
+const SCREENER_SORTS = ["volume", "market_cap_usd", "netflow", "buy_volume", "price_change", "liquidity", "token_age_days"];
 async function handleMarkets(res, q) {
   if (!live) return send(res, 200, { tokens: [], live });
   const chain = q.get("chain") || "ethereum";
@@ -131,7 +131,8 @@ async function handleMarkets(res, q) {
   if (!CHAINS.includes(chain) || !SCREENER_TIMEFRAMES.includes(timeframe) || !SCREENER_SORTS.includes(orderBy)) return send(res, 400, { error: "Invalid market query." });
   const page = Math.max(1, Math.min(10, Number(q.get("page")) || 1));
   try {
-    const r = await api.tokenScreener(client, chain, { timeframe, orderBy, smartMoney: q.get("sm") === "1", page });
+    const fresh = q.get("fresh") === "1";
+    const r = await api.tokenScreener(client, chain, { timeframe, orderBy, smartMoney: q.get("sm") === "1", maxAgeDays: fresh ? 7 : null, page });
     const scored = new Map(listReports().map((x) => [`${x.chain}:${String(x.token).toLowerCase()}`, x]));
     const tokens = (r.data?.data || [])
       .filter((t) => t.token_address && validTarget(t.chain || chain, t.token_address))
@@ -154,6 +155,34 @@ async function handleMarkets(res, q) {
         };
       });
     send(res, 200, { tokens, page, lastPage: !!r.data?.pagination?.is_last_page, cached: r.cached });
+  } catch (e) {
+    send(res, 502, { error: e.message });
+  }
+}
+
+// Top buyers and sellers of a token over the last 24h, with Nansen labels.
+async function handleTraders(res, q) {
+  if (!live) return send(res, 200, { buyers: [], sellers: [] });
+  const chain = q.get("chain") || "ethereum";
+  const token = (q.get("token") || "").trim();
+  if (!validTarget(chain, token)) return send(res, 400, { error: "Invalid chain or token address." });
+  // Round to the hour so repeated views hit the cache.
+  const to = new Date(Math.floor(Date.now() / 3600_000) * 3600_000);
+  const from = new Date(to.getTime() - 24 * 3600_000);
+  const iso = (d) => d.toISOString().replace(/\.\d{3}Z$/, "Z");
+  const rows = (r, side) =>
+    (r.data?.data || []).map((t) => ({
+      address: t.address,
+      label: t.address_label || "",
+      usd: side === "BUY" ? t.bought_volume_usd : t.sold_volume_usd,
+      netUsd: (t.bought_volume_usd || 0) - (t.sold_volume_usd || 0),
+    }));
+  try {
+    const [b, s] = await Promise.all([
+      api.whoBoughtSold(client, chain, token, "BUY", iso(from), iso(to)),
+      api.whoBoughtSold(client, chain, token, "SELL", iso(from), iso(to)),
+    ]);
+    send(res, 200, { buyers: rows(b, "BUY"), sellers: rows(s, "SELL"), from: iso(from), to: iso(to) });
   } catch (e) {
     send(res, 502, { error: e.message });
   }
@@ -203,6 +232,8 @@ const server = http.createServer(async (req, res) => {
     switch (url.pathname) {
       case "/api/config":
         return send(res, 200, { live, readOnly: READ_ONLY, chains: CHAINS });
+      case "/api/traders":
+        return handleTraders(res, q);
       case "/api/markets":
         return handleMarkets(res, q);
       case "/api/trending":

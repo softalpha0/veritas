@@ -29,6 +29,13 @@ Veritas makes the hidden structure visible:
 
 
 
+## For memecoin traders
+
+- **Meme Radar**: new launches (≤7 days) per chain, sortable by volume, net flow or liquidity. Flip to **Smart Money** to see which fresh tokens proven traders are buying.
+- **Bundle check**: Veritas clusters are what meme traders call bundles: top holders funded by the same wallet. The score and the Clusters tab show how much supply they hold and whether they're selling.
+- **Buyers & sellers (24h)**: the biggest buyers and sellers on any token, with Nansen labels, so you can tell Smart Money from fresh wallets.
+- **Net flows**: Smart traders, top PnL wallets, whales, fresh wallets and exchanges, as one diverging chart.
+
 ## Spot the Insider (game)
 
 Every round is a real token Veritas has scanned. The map shows the top holders with their clusters hidden. Pick up to five wallets you think are secretly run by one owner, then reveal the real clusters and links:
@@ -68,6 +75,7 @@ Exchanges and protocol contracts are left out of clustering, so "both funded fro
 | `profiler/address/related-wallets` | Links between wallets (First Funder, multisig, transfers) | up to 120 |
 | `search/general` | Token search by name or symbol | as you type |
 | `token-screener` | Markets page: price, market cap, volume, net flow, liquidity and age per chain | 1 per list view (cached 10 min) |
+| `tgm/who-bought-sold` | Token page "Buyers & sellers" tab: top wallets buying and selling in the last 24h, with labels | 2 per token view (cached 10 min) |
 | `smart-money/netflow` | "Smart Money is buying this week" list on the landing page | 1 per 6 hours |
 
 One full scan makes about **125 calls** (about 140 credits). Every live call is appended to `data/calls.jsonl` and totalled at `/api/stats`, so API usage is auditable. Responses are cached on disk for 6 hours, so re-opening a report costs nothing.
@@ -118,6 +126,7 @@ Veritas is a small Node server (it keeps your API key server-side), so it needs 
 | `/app` | Dashboard: totals, grade distribution, recent and highest-risk tokens, Smart Money inflows |
 | `/app?chain=…&token=…` | Token view: holder map, holders and clusters tables, score breakdown, supply composition |
 | `/app?view=markets` | Markets: live token lists per chain from Nansen's token screener (1h / 24h / 7d, all traders or Smart Money only), sortable, with a Scan button on every row |
+| `/app?view=markets&mode=fresh` | Meme Radar: tokens launched in the last 7 days per chain, with a Smart Money filter to see what proven traders are aping |
 | `/app?view=game` | Spot the Insider |
 | `/app?view=leaderboard` | Every scanned token by trust score |
 | `/report?chain=…&token=…` | Shareable project report with embeddable badge |

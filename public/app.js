@@ -90,7 +90,8 @@
   // ---------- Views ----------
   function showView(name) {
     for (const v of ["Home", "Token", "Game", "Markets", "Leaderboard", "Methodology"]) $(`view${v}`).hidden = v.toLowerCase() !== name;
-    document.querySelectorAll(".nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === (name === "token" ? "home" : name)));
+    const navKey = name === "token" ? "home" : name === "markets" && market.mode === "fresh" ? "meme" : name;
+    document.querySelectorAll(".nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === navKey));
   }
 
   // ---------- Graph ----------
@@ -234,10 +235,38 @@
     document.querySelectorAll(".tab-panel").forEach((p) => (p.hidden = p.dataset.panel !== tab));
     $("mapTools").style.visibility = tab === "map" ? "visible" : "hidden";
   }
-  document.querySelectorAll(".tabs [role=tab]").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+  document.querySelectorAll(".tabs [role=tab]").forEach((b) =>
+    b.addEventListener("click", () => {
+      setTab(b.dataset.tab);
+      if (b.dataset.tab === "traders") loadTraders();
+    }),
+  );
+
+  // Top buyers/sellers in the last 24h (2 Nansen calls, cached 10 min).
+  async function loadTraders() {
+    const key = `${state.chain}:${state.token}`;
+    if (state.tradersKey === key) return;
+    state.tradersKey = key;
+    $("buyerRows").innerHTML = $("sellerRows").innerHTML = `<tr><td colspan="2" class="muted">Loading from Nansen…</td></tr>`;
+    $("tradersNote").hidden = true;
+    let r;
+    try { r = await fetch(`/api/traders?chain=${encodeURIComponent(state.chain)}&token=${encodeURIComponent(state.token)}`).then((x) => x.json()); } catch { r = { error: "Network error" }; }
+    if (r.error) {
+      state.tradersKey = null;
+      $("buyerRows").innerHTML = $("sellerRows").innerHTML = "";
+      $("tradersNote").hidden = false;
+      $("tradersNote").textContent = `Couldn't load traders: ${r.error}`;
+      return;
+    }
+    const row = (t, cls) => `<tr><td><div class="addr-cell"><a class="mono" href="${(EXPLORERS[state.chain] || EXPLORERS.ethereum) + esc(t.address)}" target="_blank" rel="noopener">${esc(short(t.address))}</a>${t.label ? `<span class="label">${esc(t.label)}</span>` : ""}</div></td><td class="num ${cls}">${usd(t.usd || 0)}</td></tr>`;
+    $("buyerRows").innerHTML = r.buyers.length ? r.buyers.map((t) => row(t, "pos")).join("") : `<tr><td colspan="2" class="muted">No buys in the last 24h.</td></tr>`;
+    $("sellerRows").innerHTML = r.sellers.length ? r.sellers.map((t) => row(t, "neg")).join("") : `<tr><td colspan="2" class="muted">No sells in the last 24h.</td></tr>`;
+  }
 
   // ---------- Scan ----------
   function resetToken() {
+    state.tradersKey = null;
+    $("flowCard").hidden = true;
     state.nodes.clear();
     state.links.clear();
     state.clusters = [];
@@ -400,6 +429,30 @@
     renderHolders();
     renderClusters(r);
     renderSupply();
+    renderFlows(r.flow);
+  }
+
+  // Net flow by wallet cohort, from tgm/flow-intelligence (already in the scan).
+  function renderFlows(flow) {
+    $("flowCard").hidden = !flow;
+    if (!flow) return;
+    const rows = [
+      ["Smart traders", flow.smart_trader_net_flow_usd],
+      ["Top PnL wallets", flow.top_pnl_net_flow_usd],
+      ["Whales", flow.whale_net_flow_usd],
+      ["Public figures", flow.public_figure_net_flow_usd],
+      ["Fresh wallets", flow.fresh_wallets_net_flow_usd],
+      ["Exchanges", flow.exchange_net_flow_usd],
+    ].filter(([, v]) => typeof v === "number");
+    const max = Math.max(1, ...rows.map(([, v]) => Math.abs(v)));
+    $("flowWindow").textContent = flow.timeframe === "1d" ? "last 24h" : "last 7 days";
+    $("flows").innerHTML = rows
+      .map(([k, v]) => {
+        const w = (Math.abs(v) / max) * 50;
+        const bar = v >= 0 ? `left:50%;width:${w}%;background:var(--good)` : `left:${50 - w}%;width:${w}%;background:var(--bad)`;
+        return `<li><span>${esc(k)}</span><div class="flow-track"><i></i><b style="${bar}"></b></div><span class="mono ${v > 0 ? "pos" : v < 0 ? "neg" : "muted"}">${v >= 0 ? "+" : "−"}${usd(Math.abs(v))}</span></li>`;
+      })
+      .join("");
   }
 
   // Stack order is fixed and validated (adjacent pairs pass CVD + normal-vision checks).
@@ -683,14 +736,15 @@
 
   // ---------- Markets ----------
   const MARKET_CHAINS = ["ethereum", "base", "solana", "bnb", "arbitrum", "polygon", "optimism", "avalanche", "linea", "scroll", "mantle", "sonic"];
-  const market = { chain: "ethereum", timeframe: "24h", sm: "0", sort: "volume", page: 1, tokens: [] };
+  const market = { chain: "ethereum", timeframe: "24h", sm: "0", sort: "volume", page: 1, tokens: [], mode: "all" };
   const price = (v) => (v == null ? "–" : v >= 1 ? `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : v >= 0.0001 ? `$${v.toPrecision(4)}` : `$${v.toExponential(2)}`);
   const signedUsd = (v) => (v == null ? "–" : `${v >= 0 ? "+" : "−"}${usd(Math.abs(v))}`);
 
   function openMarkets() {
-    showView("markets");
     const p = new URLSearchParams(location.search);
+    market.mode = p.get("mode") === "fresh" ? "fresh" : "all";
     if (MARKET_CHAINS.includes(p.get("chain"))) market.chain = p.get("chain");
+    showView("markets");
     $("chainTabs").innerHTML = MARKET_CHAINS.map((c) => `<button role="tab" data-c="${c}" class="${c === market.chain ? "active" : ""}">${c === "bnb" ? "BNB" : c}</button>`).join("");
     $("chainTabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { market.chain = b.dataset.c; market.page = 1; loadMarkets(); }));
     loadMarkets();
@@ -699,16 +753,23 @@
   async function loadMarkets() {
     document.querySelectorAll("#chainTabs button").forEach((b) => b.classList.toggle("active", b.dataset.c === market.chain));
     document.querySelectorAll("#mktTime button").forEach((b) => b.classList.toggle("active", b.dataset.v === market.timeframe));
+    document.querySelectorAll("#mktMode button").forEach((b) => b.classList.toggle("active", b.dataset.v === market.mode));
+    const fresh = market.mode === "fresh";
+    $("mktTitle").textContent = fresh ? "Meme Radar" : "Markets";
+    $("mktSub").textContent = fresh
+      ? "Tokens launched in the last 7 days, live from Nansen. Switch to Smart Money to see what proven traders are aping, then scan for bundled wallets before you buy."
+      : "Live token lists from Nansen's token screener. Pick any token and scan who really holds it.";
+    document.querySelectorAll(".nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === (fresh ? "meme" : "markets")));
     document.querySelectorAll("#mktTraders button").forEach((b) => b.classList.toggle("active", b.dataset.v === market.sm));
     document.querySelectorAll(".market-table th.sortable").forEach((th) => th.classList.toggle("active", th.dataset.sort === market.sort));
     $("mktPage").textContent = `Page ${market.page}`;
     $("mktPrev").disabled = market.page <= 1;
     $("marketEmpty").hidden = true;
     $("marketRows").innerHTML = `<tr><td colspan="10" class="muted">Loading ${esc(market.chain)} tokens from Nansen…</td></tr>`;
-    history.replaceState(null, "", `/app?view=markets&chain=${market.chain}`);
+    history.replaceState(null, "", `/app?view=markets${market.mode === "fresh" ? "&mode=fresh" : ""}&chain=${market.chain}`);
     let r;
     try {
-      const qs = new URLSearchParams({ chain: market.chain, timeframe: market.timeframe, sort: market.sort, sm: market.sm, page: market.page });
+      const qs = new URLSearchParams({ chain: market.chain, timeframe: market.timeframe, sort: market.sort, sm: market.sm, page: market.page, fresh: market.mode === "fresh" ? "1" : "0" });
       r = await fetch(`/api/markets?${qs}`).then((x) => x.json());
     } catch { r = { error: "Network error" }; }
     if (r.error || !r.tokens?.length) {
@@ -734,7 +795,7 @@
           <td class="num">${t.volume ? usd(t.volume) : "–"}</td>
           <td class="num hide-sm ${t.netflow > 0 ? "pos" : t.netflow < 0 ? "neg" : "muted"}">${signedUsd(t.netflow)}</td>
           <td class="num hide-sm">${t.liquidity ? usd(t.liquidity) : "–"}</td>
-          <td class="num hide-sm muted">${t.ageDays == null ? "–" : t.ageDays >= 365 ? `${(t.ageDays / 365).toFixed(1)}y` : `${Math.round(t.ageDays)}d`}</td>
+          <td class="num hide-sm muted">${t.ageDays == null ? "–" : t.ageDays >= 365 ? `${(t.ageDays / 365).toFixed(1)}y` : t.ageDays >= 2 ? `${Math.round(t.ageDays)}d` : `${Math.max(1, Math.round(t.ageDays * 24))}h`}</td>
           <td class="right">${trust}</td></tr>`;
       })
       .join("");
@@ -748,6 +809,7 @@
   }
 
   document.querySelectorAll("#mktTime button").forEach((b) => b.addEventListener("click", () => { market.timeframe = b.dataset.v; market.page = 1; loadMarkets(); }));
+  document.querySelectorAll("#mktMode button").forEach((b) => b.addEventListener("click", () => { market.mode = b.dataset.v; market.page = 1; loadMarkets(); }));
   document.querySelectorAll("#mktTraders button").forEach((b) => b.addEventListener("click", () => { market.sm = b.dataset.v; market.page = 1; loadMarkets(); }));
   document.querySelectorAll(".market-table th.sortable").forEach((th) => th.addEventListener("click", () => { market.sort = th.dataset.sort; market.page = 1; loadMarkets(); }));
   $("mktPrev").addEventListener("click", () => { market.page--; loadMarkets(); });
